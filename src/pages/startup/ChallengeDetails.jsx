@@ -1,4 +1,5 @@
-import { useNavigate, useParams } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate, useParams, Link } from "react-router-dom";
 import {
   ArrowLeft,
   Calendar,
@@ -6,210 +7,300 @@ import {
   MapPin,
   Tag,
   CheckCircle,
+  AlertTriangle,
+  Sparkles,
+  Bookmark,
+  BookmarkCheck,
+  Wallet,
+  Clock3,
+  Megaphone,
+  FileEdit,
 } from "lucide-react";
-
-const challenges = [
-  {
-    id: 1,
-    title: "Smart City Waste Management",
-    department: "Urban Development Department",
-    category: "CleanTech",
-    location: "Madhya Pradesh",
-    deadline: "30 Sep 2026",
-    description:
-      "Develop an innovative technology solution for efficient waste collection, segregation, and monitoring in urban areas.",
-    requirements: [
-      "Technology-based waste management solution",
-      "Real-time monitoring capability",
-      "Scalable for urban areas",
-      "Citizen-friendly interface",
-    ],
-  },
-  {
-    id: 2,
-    title: "AI Based Traffic Management",
-    department: "Transport Department",
-    category: "Artificial Intelligence",
-    location: "Delhi",
-    deadline: "15 Oct 2026",
-    description:
-      "Build an AI-powered system to analyze traffic patterns and improve traffic flow across major city intersections.",
-    requirements: [
-      "AI-based traffic analysis",
-      "Real-time traffic monitoring",
-      "Traffic prediction capability",
-      "Scalable solution",
-    ],
-  },
-  {
-    id: 3,
-    title: "Digital Healthcare Platform",
-    department: "Health Department",
-    category: "Healthcare",
-    location: "Maharashtra",
-    deadline: "20 Oct 2026",
-    description:
-      "Create a digital platform that improves access to healthcare services for citizens in rural and urban areas.",
-    requirements: [
-      "Digital healthcare services",
-      "Patient-friendly interface",
-      "Secure data handling",
-      "Support for rural users",
-    ],
-  },
-  {
-    id: 4,
-    title: "Smart Agriculture Monitoring",
-    department: "Agriculture Department",
-    category: "Agriculture",
-    location: "Punjab",
-    deadline: "5 Nov 2026",
-    description:
-      "Develop a smart agriculture solution using sensors and technology to monitor crops and improve farm productivity.",
-    requirements: [
-      "Crop monitoring",
-      "Agricultural data collection",
-      "Farmer-friendly interface",
-      "Productivity improvement",
-    ],
-  },
-  {
-    id: 5,
-    title: "Digital Education Access",
-    department: "Education Department",
-    category: "Education",
-    location: "Rajasthan",
-    deadline: "12 Nov 2026",
-    description:
-      "Build a platform that improves access to quality digital education for students in underserved regions.",
-    requirements: [
-      "Online learning platform",
-      "Accessible for students",
-      "Low-bandwidth support",
-      "Educational content management",
-    ],
-  },
-  {
-    id: 6,
-    title: "Renewable Energy Monitoring",
-    department: "Energy Department",
-    category: "CleanTech",
-    location: "Gujarat",
-    deadline: "25 Nov 2026",
-    description:
-      "Create a monitoring platform for tracking renewable energy generation and improving energy efficiency.",
-    requirements: [
-      "Energy generation monitoring",
-      "Real-time data",
-      "Analytics dashboard",
-      "Energy efficiency tracking",
-    ],
-  },
-];
+import { formatDistanceToNow, parseISO } from "date-fns";
+import { useAuth } from "../../context/AuthContext.jsx";
+import { getChallengeById, getChallenges } from "../../services/challengeService.js";
+import { getProfile } from "../../services/startupService.js";
+import { hasApplied } from "../../services/applicationService.js";
+import { getDraft } from "../../services/drafts.js";
+import { getBookmarks, toggleBookmark } from "../../services/bookmarks.js";
+import { matchScore, checkEligibility, rankChallenges } from "../../services/matching.js";
+import { deadlineBadge, formatDate } from "../../services/deadlines.js";
+import { Loading, ErrorBanner } from "../../components/feedback.jsx";
 
 function ChallengeDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const [challenge, setChallenge] = useState(null);
+  const [profile, setProfile] = useState(null);
+  const [alreadyApplied, setAlreadyApplied] = useState(false);
+  const [draft, setDraft] = useState(null);
+  const [saved, setSaved] = useState([]);
+  const [related, setRelated] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  const challenge = challenges.find(
-    (item) => item.id === Number(id)
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      setLoading(true);
+      setError("");
+      try {
+        const [data, prof, marks, all] = await Promise.all([
+          getChallengeById(id),
+          getProfile(user?.id),
+          getBookmarks(user?.id),
+          getChallenges(),
+        ]);
+        if (!mounted) return;
+        setChallenge(data);
+        setProfile(prof);
+        setSaved(marks);
+        if (data) {
+          const [applied, dr] = await Promise.all([
+            user?.id ? hasApplied(user.id, data.id) : Promise.resolve(false),
+            user?.id ? getDraft(user.id, data.id) : Promise.resolve(null),
+          ]);
+          if (!mounted) return;
+          setAlreadyApplied(applied);
+          setDraft(dr);
+          const ranked = rankChallenges(prof || {}, all).filter(
+            (r) => r.challenge.id !== data.id
+          );
+          const sameCat = ranked.filter(
+            (r) => r.challenge.category === data.category
+          );
+          setRelated([...sameCat, ...ranked].slice(0, 3).map((r) => r.challenge));
+        }
+      } catch (e) {
+        if (mounted) setError(e.message || "Failed to load challenge.");
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [id, user?.id]);
+
+  const match = useMemo(
+    () => (challenge ? matchScore(profile || {}, challenge) : null),
+    [profile, challenge]
   );
+  const eligibility = useMemo(
+    () => (challenge ? checkEligibility(profile || {}, challenge) : null),
+    [profile, challenge]
+  );
+  const badge = challenge ? deadlineBadge(challenge) : null;
+  const isSaved = challenge ? saved.includes(challenge.id) : false;
+
+  const handleBookmark = async () => {
+    if (!challenge) return;
+    setSaved(await toggleBookmark(user?.id, challenge.id));
+  };
+
+  if (loading) {
+    return (
+      <div className="details-page" style={{ margin: -32 }}>
+        <Loading label="Loading challenge..." />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="details-page" style={{ margin: -32 }}>
+        <ErrorBanner message={error} onRetry={() => navigate("/challenges")} />
+      </div>
+    );
+  }
 
   if (!challenge) {
     return (
-      <div className="details-page">
-        <button
-          className="back-button"
-          onClick={() => navigate("/challenges")}
-        >
+      <div className="details-page" style={{ margin: -32 }}>
+        <button className="back-button" onClick={() => navigate("/challenges")}>
           <ArrowLeft size={18} />
           Back to Challenges
         </button>
-
         <div className="not-found">
           <h2>Challenge not found</h2>
-          <p>The challenge you're looking for doesn't exist.</p>
+          <p>The challenge you&apos;re looking for doesn&apos;t exist.</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="details-page">
-
-      {/* Back button */}
-      <button
-        className="back-button"
-        onClick={() => navigate("/challenges")}
-      >
+    <div className="details-page" style={{ margin: -32 }}>
+      <button className="back-button" onClick={() => navigate("/challenges")}>
         <ArrowLeft size={18} />
         Back to Challenges
       </button>
 
-      {/* Main card */}
+      {draft && !alreadyApplied && (
+        <div className="draft-banner">
+          <FileEdit size={18} />
+          <span>
+            You have a draft from{" "}
+            {formatDistanceToNow(parseISO(draft.updatedAt), { addSuffix: true })}.
+          </span>
+          <button
+            className="primary-button"
+            onClick={() => navigate(`/apply/${challenge.id}`)}
+          >
+            Resume draft
+          </button>
+        </div>
+      )}
+
       <div className="details-card">
-
-        {/* Header */}
         <div className="details-header">
-
           <div>
-            <span className="category-badge">
-              {challenge.category}
-            </span>
-
-            <h1>{challenge.title}</h1>
-          </div>
-
-          <div className="deadline-large">
-            <Calendar size={20} />
-            <div>
-              <span>Application Deadline</span>
-              <strong>{challenge.deadline}</strong>
+            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+              <span className="category-badge">{challenge.category}</span>
+              {match && (
+                <span className="match-pill">
+                  <Sparkles size={14} />
+                  {match.score}% match for you
+                </span>
+              )}
             </div>
+            <h1>{challenge.title}</h1>
+            {(challenge.tags || []).length > 0 && (
+              <div className="tag-row">
+                {challenge.tags.map((t) => (
+                  <span className="tag-chip" key={t}>
+                    {t}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
-
+          <div style={{ display: "flex", flexDirection: "column", gap: 10, alignItems: "flex-end" }}>
+            <div className="deadline-large">
+              <Calendar size={20} />
+              <div>
+                <span>Application Deadline</span>
+                <strong>
+                  {challenge.deadline} · {badge.label}
+                </strong>
+              </div>
+            </div>
+            <button
+              className={`save-btn ${isSaved ? "active" : ""}`}
+              onClick={handleBookmark}
+            >
+              {isSaved ? <BookmarkCheck size={17} /> : <Bookmark size={17} />}
+              {isSaved ? "Saved" : "Save for later"}
+            </button>
+          </div>
         </div>
 
-        {/* Information */}
-        <div className="details-info">
-
-          <div className="info-item">
+        <div className="fact-grid">
+          <div className="fact-item">
             <Building2 size={20} />
             <div>
               <span>Department</span>
               <strong>{challenge.department}</strong>
             </div>
           </div>
-
-          <div className="info-item">
+          <div className="fact-item">
             <MapPin size={20} />
             <div>
               <span>Location</span>
               <strong>{challenge.location}</strong>
             </div>
           </div>
-
-          <div className="info-item">
+          <div className="fact-item">
+            <Wallet size={20} />
+            <div>
+              <span>Budget</span>
+              <strong>{challenge.budget || "See details"}</strong>
+            </div>
+          </div>
+          <div className="fact-item">
+            <Clock3 size={20} />
+            <div>
+              <span>Duration</span>
+              <strong>{challenge.duration || "—"}</strong>
+            </div>
+          </div>
+          <div className="fact-item">
             <Tag size={20} />
             <div>
               <span>Category</span>
               <strong>{challenge.category}</strong>
             </div>
           </div>
-
+          <div className="fact-item">
+            <Megaphone size={20} />
+            <div>
+              <span>Posted</span>
+              <strong>
+                {challenge.postedDate ? formatDate(challenge.postedDate) : "—"}
+              </strong>
+            </div>
+          </div>
         </div>
 
-        {/* Description */}
+        {match && (
+          <div className="details-section insight-panel">
+            <h2>
+              <Sparkles size={19} />
+              Why {match.score}% for {profile?.startupName || "you"}
+            </h2>
+            {match.reasons.length > 0 && (
+              <ul className="reasons-list">
+                {match.reasons.map((r) => (
+                  <li key={r}>
+                    <CheckCircle size={17} />
+                    {r}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {match.missing.length > 0 && (
+              <div className="missing-box">
+                <strong>Boost your match:</strong>
+                <ul>
+                  {match.missing.map((m) => (
+                    <li key={m}>
+                      {m} — <Link to="/profile">update profile</Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
+
+        {eligibility && (
+          <div className="details-section">
+            <h2>Eligibility check</h2>
+            <ul className="elig-list">
+              {eligibility.checks.map((c) => (
+                <li key={c.id} className={c.ok ? "ok" : c.warn ? "warn" : "bad"}>
+                  {c.ok ? <CheckCircle size={17} /> : <AlertTriangle size={17} />}
+                  {c.label}
+                </li>
+              ))}
+            </ul>
+            {!eligibility.eligible && (
+              <p style={{ marginTop: 10 }}>
+                Complete the flagged items in <Link to="/profile">your profile</Link>{" "}
+                before applying.
+              </p>
+            )}
+          </div>
+        )}
+
         <div className="details-section">
           <h2>About the Challenge</h2>
-
           <p>{challenge.description}</p>
         </div>
 
-        {/* Requirements */}
         <div className="details-section">
           <h2>Requirements</h2>
-
           <ul className="requirements-list">
             {challenge.requirements.map((requirement, index) => (
               <li key={index}>
@@ -218,32 +309,76 @@ function ChallengeDetails() {
               </li>
             ))}
           </ul>
+          {challenge.eligibility?.note && (
+            <p className="elig-note">{challenge.eligibility.note}</p>
+          )}
         </div>
 
-        {/* Apply */}
         <div className="apply-section">
-
           <div>
             <h3>Have a solution for this challenge?</h3>
-            <p>
-              Submit your startup solution before the application deadline.
-            </p>
+            <p>Submit your startup solution before the application deadline.</p>
+            {alreadyApplied && (
+              <p style={{ color: "#166534", fontWeight: 600, marginTop: 8 }}>
+                You already applied — track it in My Applications.
+              </p>
+            )}
           </div>
-
           <button
             className="apply-button"
-            onClick={() => navigate(`/apply/${challenge.id}`)}
+            onClick={() =>
+              alreadyApplied
+                ? navigate("/applications")
+                : navigate(`/apply/${challenge.id}`)
+            }
           >
-            Apply Now
+            {alreadyApplied ? "Track Application" : draft ? "Resume & Apply" : "Apply Now"}
           </button>
-
         </div>
 
+        {related.length > 0 && (
+          <div className="details-section">
+            <h2>Related challenges</h2>
+            <div className="related-grid">
+              {related.map((r) => (
+                <button
+                  key={r.id}
+                  className="related-card"
+                  onClick={() => navigate(`/challenges/${r.id}`)}
+                >
+                  <span className="category-badge">{r.category}</span>
+                  <strong>{r.title}</strong>
+                  <span className="related-meta">
+                    {r.department} · {r.deadline}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="sticky-apply">
+        <div>
+          <strong>{challenge.title}</strong>
+          <span>
+            {challenge.deadline} · {badge.label}
+            {challenge.budget ? ` · ${challenge.budget}` : ""}
+          </span>
+        </div>
+        <button
+          className="apply-button"
+          onClick={() =>
+            alreadyApplied
+              ? navigate("/applications")
+              : navigate(`/apply/${challenge.id}`)
+          }
+        >
+          {alreadyApplied ? "Track Application" : "Apply Now"}
+        </button>
       </div>
     </div>
   );
 }
 
 export default ChallengeDetails;
-
-
