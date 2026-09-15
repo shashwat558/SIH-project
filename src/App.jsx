@@ -1,4 +1,11 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { AuthProvider } from "./context/AuthContext.jsx";
+import { ThemeProvider } from "./context/ThemeContext.jsx";
+import Layout from "./components/Layout.jsx";
+import ProtectedRoute from "./components/ProtectedRoute.jsx";
+import { Login, Signup } from "./pages/auth/Auth.jsx";
+import Landing from "./pages/Landing.jsx";
+import NotFound from "./pages/NotFound.jsx";
 
 import StartupDashboard from "./pages/startup/StartupDashboard";
 import StartupProfile from "./pages/startup/StartupProfile";
@@ -9,43 +16,35 @@ import MyApplications from "./pages/startup/MyApplications";
 
 function App() {
   return (
-    <BrowserRouter>
-      <Routes>
+    <ThemeProvider>
+    <AuthProvider>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<Landing />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/signup" element={<Signup />} />
 
-        <Route
-          path="/"
-          element={<StartupDashboard />}
-        />
+          <Route
+            element={
+              <ProtectedRoute>
+                <Layout />
+              </ProtectedRoute>
+            }
+          >
+            <Route path="/dashboard" element={<StartupDashboard />} />
+            <Route path="/profile" element={<StartupProfile />} />
+            <Route path="/challenges" element={<BrowseChallenges />} />
+            <Route path="/challenges/:id" element={<ChallengeDetails />} />
+            <Route path="/apply/:id" element={<ApplyChallenge />} />
+            <Route path="/applications" element={<MyApplications />} />
+          </Route>
 
-        <Route
-          path="/profile"
-          element={<StartupProfile />}
-        />
-
-        <Route
-          path="/challenges"
-          element={<BrowseChallenges />}
-        />
-
-        <Route
-          path="/challenges/:id"
-          element={<ChallengeDetails />}
-        />
-
-        <Route
-          path="/apply/:id"
-          element={<ApplyChallenge />}
-        />
-
-        <Route 
-          path="/applications" 
-          element={<MyApplications />} 
-        />
-
-      </Routes>
-    </BrowserRouter>
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </BrowserRouter>
+    </AuthProvider>
+    </ThemeProvider>
   );
 }
 
 export default App;
-
