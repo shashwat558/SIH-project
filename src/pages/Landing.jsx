@@ -89,6 +89,9 @@ function Landing() {
           <Link to="/signup" className="landing-cta">
             Get started <ArrowRight size={16} />
           </Link>
+          <Link to="/login" className="landing-ghost" title="Government demo: demo@gov.in / password123">
+            Govt login
+          </Link>
         </div>
       </header>
 
@@ -218,9 +221,9 @@ function Landing() {
       </section>
 
       <footer className="landing-footer">
-        <span>Startup2Gov · Member 3 startup module · Sample demo data</span>
+        <span>Startup2Gov · Startup + Government modules · Sample demo data</span>
         <span>
-          <Link to="/login">Sign in</Link> · <Link to="/signup">Sign up</Link>
+          <Link to="/login">Sign in</Link> · <Link to="/signup">Sign up</Link> · Govt demo: demo@gov.in / password123
         </span>
       </footer>
     </div>

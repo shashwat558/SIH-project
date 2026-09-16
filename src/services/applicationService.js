@@ -44,6 +44,20 @@ export async function getStats(userId, totalChallenges) {
   };
 }
 
+export const APPLICATION_STATUSES = [
+  "Pending",
+  "Under Review",
+  "Approved",
+  "Rejected",
+];
+
+export const REVIEW_TRANSITIONS = {
+  Pending: ["Under Review", "Approved", "Rejected"],
+  "Under Review": ["Approved", "Rejected", "Pending"],
+  Approved: ["Under Review", "Rejected"],
+  Rejected: ["Under Review", "Pending"],
+};
+
 export async function hasApplied(userId, challengeId) {
   await delay(100);
   return visibleFor(userId).some(
@@ -119,4 +133,80 @@ export async function withdrawApplication(userId, applicationId) {
     applicationId,
   }).catch(() => {});
   return true;
+}
+
+// ---------------- Government review (mock) ----------------
+
+function govScoped(ownedChallengeIds) {
+  const all = allApplications();
+  if (!Array.isArray(ownedChallengeIds) || ownedChallengeIds.length === 0) {
+    // Demo gov account owns nothing yet — show the full sample queue so the
+    // review flow is demonstrable. Real Supabase RLS would scope by department.
+    return all;
+  }
+  const ids = new Set(ownedChallengeIds.map(Number));
+  return all.filter((a) => ids.has(Number(a.challengeId)));
+}
+
+export async function getApplicationsForGov({ ownedChallengeIds = null } = {}) {
+  await delay(250);
+  return govScoped(ownedChallengeIds).slice().reverse();
+}
+
+export async function getGovStats(ownedChallengeIds = null) {
+  await delay(100);
+  const apps = govScoped(ownedChallengeIds);
+  const by = (s) => apps.filter((a) => a.status === s).length;
+  return {
+    total: apps.length,
+    pending: by("Pending"),
+    underReview: by("Under Review"),
+    approved: by("Approved"),
+    rejected: by("Rejected"),
+    inProgress: by("Pending") + by("Under Review"),
+  };
+}
+
+export async function updateApplicationStatus({
+  reviewerId,
+  applicationId,
+  status,
+  note,
+}) {
+  await delay(250);
+  if (!reviewerId) throw new Error("Not authenticated");
+  if (!APPLICATION_STATUSES.includes(status)) {
+    throw new Error(`Invalid status: ${status}`);
+  }
+  const all = allApplications();
+  const idx = all.findIndex((a) => a.id === applicationId);
+  if (idx === -1) throw new Error("Application not found");
+  const nowISO = new Date().toISOString();
+  const prev = all[idx];
+  const next = {
+    ...prev,
+    status,
+    reviewNote: String(note || "").trim(),
+    reviewedBy: reviewerId,
+    reviewedAt: nowISO,
+    updatedAt: nowISO,
+  };
+  all[idx] = next;
+  setJSON(KEYS.applications, all);
+  await logActivity(
+    reviewerId,
+    "reviewed",
+    `${status}: ${next.challenge} (${next.id})${prev.status !== status ? ` [${prev.status} → ${status}]` : ""}`,
+    { applicationId: next.id, challengeId: next.challengeId, status }
+  ).catch(() => {});
+  // Also log for the applicant so their timeline/activity reflects the review.
+  if (next.userId) {
+    await logActivity(
+      next.userId,
+      "status_changed",
+      `Your application ${next.id} is now ${status}`,
+      { applicationId: next.id, challengeId: next.challengeId, status }
+    ).catch(() => {});
+  }
+  return next;
 }
