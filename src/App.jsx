@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext.jsx";
 import { ThemeProvider } from "./context/ThemeContext.jsx";
 import Layout from "./components/Layout.jsx";
+import GovLayout from "./components/GovLayout.jsx";
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
 import { Login, Signup } from "./pages/auth/Auth.jsx";
 import Landing from "./pages/Landing.jsx";
@@ -13,6 +14,11 @@ import BrowseChallenges from "./pages/startup/BrowseChallenges";
 import ChallengeDetails from "./pages/startup/ChallengeDetails";
 import ApplyChallenge from "./pages/startup/ApplyChallenge";
 import MyApplications from "./pages/startup/MyApplications";
+
+import GovDashboard from "./pages/gov/GovDashboard.jsx";
+import GovChallenges from "./pages/gov/GovChallenges.jsx";
+import ChallengeForm from "./pages/gov/ChallengeForm.jsx";
+import GovApplications from "./pages/gov/GovApplications.jsx";
 
 function App() {
   return (
@@ -26,7 +32,7 @@ function App() {
 
           <Route
             element={
-              <ProtectedRoute>
+              <ProtectedRoute allowedRoles={["startup"]}>
                 <Layout />
               </ProtectedRoute>
             }
@@ -37,6 +43,20 @@ function App() {
             <Route path="/challenges/:id" element={<ChallengeDetails />} />
             <Route path="/apply/:id" element={<ApplyChallenge />} />
             <Route path="/applications" element={<MyApplications />} />
+          </Route>
+
+          <Route
+            element={
+              <ProtectedRoute allowedRoles={["government"]}>
+                <GovLayout />
+              </ProtectedRoute>
+            }
+          >
+            <Route path="/gov/dashboard" element={<GovDashboard />} />
+            <Route path="/gov/challenges" element={<GovChallenges />} />
+            <Route path="/gov/challenges/new" element={<ChallengeForm />} />
+            <Route path="/gov/challenges/:id/edit" element={<ChallengeForm />} />
+            <Route path="/gov/applications" element={<GovApplications />} />
           </Route>
 
           <Route path="*" element={<NotFound />} />

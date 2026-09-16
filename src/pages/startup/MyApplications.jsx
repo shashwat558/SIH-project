@@ -315,6 +315,7 @@ function MyApplications() {
             <option value="Pending">Pending</option>
             <option value="Under Review">Under Review</option>
             <option value="Approved">Approved</option>
+            <option value="Rejected">Rejected</option>
           </select>
         </div>
 

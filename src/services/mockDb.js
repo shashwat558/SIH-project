@@ -10,6 +10,7 @@ const KEYS = {
   bookmarks: "s2g_bookmarks",
   drafts: "s2g_drafts",
   activity: "s2g_activity",
+  govChallenges: "s2g_gov_challenges",
 };
 
 // Scoped keys (suffixed per user by services).

@@ -51,8 +51,10 @@ export function applicationTimeline(app) {
     events.push({
       id: `${app.id}-status`,
       label: `Status: ${app.status}`,
-      at: app.updatedAt || app.createdAt || app.submittedOn,
-      detail: "Updated by department (sample)",
+      at: app.reviewedAt || app.updatedAt || app.createdAt || app.submittedOn,
+      detail: app.reviewNote
+        ? `Reviewer note: ${app.reviewNote}`
+        : "Updated by department (sample)",
     });
   }
   return events;
