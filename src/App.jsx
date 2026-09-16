@@ -13,6 +13,7 @@ import BrowseChallenges from "./pages/startup/BrowseChallenges";
 import ChallengeDetails from "./pages/startup/ChallengeDetails";
 import ApplyChallenge from "./pages/startup/ApplyChallenge";
 import MyApplications from "./pages/startup/MyApplications";
+import EvaluationDashboard from "./pages/evaluator/EvaluationDashboard";
 
 function App() {
   return (
@@ -37,6 +38,7 @@ function App() {
             <Route path="/challenges/:id" element={<ChallengeDetails />} />
             <Route path="/apply/:id" element={<ApplyChallenge />} />
             <Route path="/applications" element={<MyApplications />} />
+            <Route path="/evaluation" element={<EvaluationDashboard />} />
           </Route>
 
           <Route path="*" element={<NotFound />} />
