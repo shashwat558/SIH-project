@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { User, Mail, Lock, Landmark, Sun, Moon, ArrowRight } from "lucide-react";
+import { User, Mail, Lock, Landmark, Sun, Moon, ArrowRight, Building2, Briefcase } from "lucide-react";
 import { useAuth } from "../../context/AuthContext.jsx";
 import { useTheme } from "../../context/ThemeContext.jsx";
+import { dashboardForRole } from "../../services/authService.js";
 
 function AuthForm({ mode }) {
   const isLogin = mode === "login";
@@ -10,9 +11,18 @@ function AuthForm({ mode }) {
   const { theme, toggle } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
-  const [form, setForm] = useState({ startupName: "", email: "", password: "" });
+  const [role, setRole] = useState("startup");
+  const [form, setForm] = useState({
+    startupName: "",
+    orgName: "",
+    designation: "",
+    email: "",
+    password: "",
+  });
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+
+  const isGov = role === "government";
 
   const handleChange = (e) =>
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -24,9 +34,15 @@ function AuthForm({ mode }) {
       setError("Email and password are required.");
       return;
     }
-    if (!isLogin && !form.startupName.trim()) {
-      setError("Startup name is required.");
-      return;
+    if (!isLogin) {
+      if (!isGov && !form.startupName.trim()) {
+        setError("Startup name is required.");
+        return;
+      }
+      if (isGov && !form.orgName.trim()) {
+        setError("Organisation / department is required.");
+        return;
+      }
     }
     if (form.password.length < 6) {
       setError("Password must be at least 6 characters (demo rule).");
@@ -34,16 +50,29 @@ function AuthForm({ mode }) {
     }
     setBusy(true);
     try {
+      let nextUser;
       if (isLogin) {
-        await login({ email: form.email, password: form.password });
+        nextUser = await login({ email: form.email, password: form.password });
       } else {
-        await signup({
+        nextUser = await signup({
+          role,
           startupName: form.startupName,
+          orgName: form.orgName,
+          department: form.orgName,
+          designation: form.designation,
           email: form.email,
           password: form.password,
         });
       }
-      const dest = location.state?.from || "/dashboard";
+      // Shared login: honour return-to only when the role matches,
+      // otherwise send each role to its own dashboard.
+      const from = location.state?.from;
+      const fromIsGov = typeof from === "string" && from.startsWith("/gov");
+      const roleIsGov = nextUser?.role === "government";
+      const dest =
+        from && fromIsGov === roleIsGov
+          ? from
+          : dashboardForRole(nextUser?.role);
       navigate(dest, { replace: true });
     } catch (err) {
       setError(err.message || "Something went wrong.");
@@ -72,12 +101,37 @@ function AuthForm({ mode }) {
         </h1>
         <p className="auth-sub">
           {isLogin
-            ? "Jump back into your startup pipeline."
-            : "Start managing your govt applications today."}
+            ? "Jump back into your pipeline."
+            : isGov
+              ? "Publish challenges and review startup applications."
+              : "Start managing your govt applications today."}
         </p>
 
+        <div className="role-toggle" role="tablist" aria-label="Account type">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={!isGov}
+            className={!isGov ? "on" : ""}
+            onClick={() => setRole("startup")}
+          >
+            <User size={15} />
+            Startup
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={isGov}
+            className={isGov ? "on" : ""}
+            onClick={() => setRole("government")}
+          >
+            <Building2 size={15} />
+            Government
+          </button>
+        </div>
+
         <form onSubmit={handleSubmit} noValidate>
-          {!isLogin && (
+          {!isLogin && !isGov && (
             <div className="auth-field">
               <label htmlFor="startupName">
                 <User size={15} />
@@ -92,6 +146,39 @@ function AuthForm({ mode }) {
                 autoComplete="organization"
               />
             </div>
+          )}
+
+          {!isLogin && isGov && (
+            <>
+              <div className="auth-field">
+                <label htmlFor="orgName">
+                  <Building2 size={15} />
+                  Organisation / department
+                </label>
+                <input
+                  id="orgName"
+                  name="orgName"
+                  placeholder="Urban Development Department"
+                  value={form.orgName}
+                  onChange={handleChange}
+                  autoComplete="organization"
+                />
+              </div>
+              <div className="auth-field">
+                <label htmlFor="designation">
+                  <Briefcase size={15} />
+                  Designation (optional)
+                </label>
+                <input
+                  id="designation"
+                  name="designation"
+                  placeholder="Nodal Officer"
+                  value={form.designation}
+                  onChange={handleChange}
+                  autoComplete="organization-title"
+                />
+              </div>
+            </>
           )}
 
           <div className="auth-field">
@@ -149,8 +236,9 @@ function AuthForm({ mode }) {
       </div>
 
       <p className="auth-demo">
-        <Link to="/">← Back to home</Link> · Demo: demo@startup.in / password123 ·
-        mock auth, data stays in this browser
+        <Link to="/">← Back to home</Link> · Demo startup: demo@startup.in /
+        password123 · Demo govt: demo@gov.in / password123 · mock auth, data
+        stays in this browser
       </p>
     </div>
   );
