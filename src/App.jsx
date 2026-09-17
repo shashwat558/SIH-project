@@ -20,6 +20,7 @@ import GovDashboard from "./pages/gov/GovDashboard.jsx";
 import GovChallenges from "./pages/gov/GovChallenges.jsx";
 import ChallengeForm from "./pages/gov/ChallengeForm.jsx";
 import GovApplications from "./pages/gov/GovApplications.jsx";
+import GovPilots from "./pages/gov/GovPilots.jsx";
 
 function App() {
   return (
@@ -59,6 +60,7 @@ function App() {
             <Route path="/gov/challenges/:id/edit" element={<ChallengeForm />} />
             <Route path="/gov/applications" element={<GovApplications />} />
             <Route path="/evaluation" element={<EvaluationDashboard />} />
+            <Route path="/gov/pilots" element={<GovPilots />} />
           </Route>
 
           <Route path="*" element={<NotFound />} />

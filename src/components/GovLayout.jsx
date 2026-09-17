@@ -8,6 +8,7 @@ import {
   Sun,
   Moon,
   PlusCircle,
+  Activity,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext.jsx";
 import { useTheme } from "../context/ThemeContext.jsx";
@@ -70,14 +71,21 @@ function GovLayout() {
           >
             <Inbox size={20} />
             Applications
+            </NavLink>
+          <NavLink
+            to="/gov/evaluation"
+            className={({ isActive }) => (isActive ? "active" : "")}
+          >
+            <ClipboardCheck size={20} />
+            Evaluation
           </NavLink>
           <NavLink
-  to="/evaluation"
-  className={({ isActive }) => (isActive ? "active" : "")}
->
-  <ClipboardCheck size={20} />
-  Evaluation
-</NavLink>
+            to="/gov/pilots"
+            className={({ isActive }) => (isActive ? "active" : "")}
+          >
+            <Activity size={20} />
+            Pilots & KPIs
+          </NavLink>
         </nav>
         <div className="side-footer">
           <div className="side-user">
