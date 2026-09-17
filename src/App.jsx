@@ -44,7 +44,6 @@ function App() {
             <Route path="/challenges/:id" element={<ChallengeDetails />} />
             <Route path="/apply/:id" element={<ApplyChallenge />} />
             <Route path="/applications" element={<MyApplications />} />
-            <Route path="/evaluation" element={<EvaluationDashboard />} />
           </Route>
 
           <Route
@@ -59,6 +58,7 @@ function App() {
             <Route path="/gov/challenges/new" element={<ChallengeForm />} />
             <Route path="/gov/challenges/:id/edit" element={<ChallengeForm />} />
             <Route path="/gov/applications" element={<GovApplications />} />
+            <Route path="/evaluation" element={<EvaluationDashboard />} />
           </Route>
 
           <Route path="*" element={<NotFound />} />

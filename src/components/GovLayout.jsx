@@ -3,6 +3,7 @@ import {
   LayoutDashboard,
   FileStack,
   Inbox,
+  ClipboardCheck,
   LogOut,
   Sun,
   Moon,
@@ -70,6 +71,13 @@ function GovLayout() {
             <Inbox size={20} />
             Applications
           </NavLink>
+          <NavLink
+  to="/evaluation"
+  className={({ isActive }) => (isActive ? "active" : "")}
+>
+  <ClipboardCheck size={20} />
+  Evaluation
+</NavLink>
         </nav>
         <div className="side-footer">
           <div className="side-user">
