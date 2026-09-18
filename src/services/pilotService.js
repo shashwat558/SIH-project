@@ -1,138 +1,97 @@
-// ==========================================
-//  PILOT & KPI TRACKING SERVICE
-// Handles Pilot lifecycle, milestone completions, and KPI time-series metrics
-// ==========================================
+const STORAGE_KEY = 'startup2gov_pilots_data';
 
-export const INITIAL_PILOTS = [
+const INITIAL_PILOTS = [
   {
-    id: "PLT-2026-01",
-    challengeId: "CH-101",
-    challengeTitle: "Smart City Waste Management",
-    startupName: "AquaSense Technologies",
-    solutionTitle: "AI-driven Smart Bin & Route Optimization",
-    department: "Urban Development Department",
-    startDate: "2026-09-01",
-    endDate: "2026-12-31",
-    budgetAllocated: 460000,
-    budgetSpent: 185000,
-    status: "Active",
-    health: "On Track",
-    overallProgress: 65,
+    id: 'PLT-2026-01',
+    startupName: 'AeroClean Dynamics',
+    challengeTitle: 'Automated Drone Air Quality Mapping',
+    department: 'Urban Development Department',
+    status: 'On Track',
+    deploymentProgress: 65,
+    budgetSpent: 450000,
+    totalBudget: 800000,
     kpis: [
-      {
-        name: "Sensor Uptime",
-        target: 99.0,
-        current: 98.4,
-        unit: "%",
-        status: "Good"
-      },
-      {
-        name: "Route Fuel Reduction",
-        target: 25.0,
-        current: 21.8,
-        unit: "%",
-        status: "Good"
-      },
-      {
-        name: "Bin Overflow Incidents",
-        target: 5,
-        current: 3,
-        unit: "incidents/mo",
-        status: "Optimal"
-      }
-    ],
-    metricsHistory: [
-      { week: "Wk 1", targetEff: 70, actualEff: 68, binsActive: 20 },
-      { week: "Wk 2", targetEff: 75, actualEff: 74, binsActive: 45 },
-      { week: "Wk 3", targetEff: 80, actualEff: 79, binsActive: 75 },
-      { week: "Wk 4", targetEff: 85, actualEff: 88, binsActive: 110 },
-      { week: "Wk 5", targetEff: 90, actualEff: 91, binsActive: 140 },
-      { week: "Wk 6", targetEff: 95, actualEff: 94, binsActive: 160 }
+      { name: 'PM2.5 Sensor Uptime', current: '98.2%', goal: '95%', status: 'Healthy' },
+      { name: 'Data Latency', current: '420ms', goal: '500ms', status: 'Healthy' },
+      { name: 'Sampling Coverage', current: '84%', goal: '80%', status: 'Healthy' }
     ],
     milestones: [
-      { id: 1, title: "Sensor Hardware Prototyping & Lab Testing", dueDate: "2026-09-15", completed: true },
-      { id: 2, title: "Field Deployment in Ward 4 & 5 (100 Bins)", dueDate: "2026-10-05", completed: true },
-      { id: 3, title: "Telemetry Integration with Municipal Control Dashboard", dueDate: "2026-10-25", completed: false },
-      { id: 4, title: "Route Optimization Algorithm Pilot Run", dueDate: "2026-11-20", completed: false },
-      { id: 5, title: "Final Impact Audit & Procurement Clearance Report", dueDate: "2026-12-20", completed: false }
+      { id: 'm1', title: 'Hardware Integration & Drone Flight Tests', dueDate: '2026-07-15', verified: true, amount: 250000, paymentStatus: 'Disbursed', txHash: 'PFMS-TXN-98421' },
+      { id: 'm2', title: 'Real-time Telemetry Dashboard Sync', dueDate: '2026-08-10', verified: true, amount: 200000, paymentStatus: 'Disbursed', txHash: 'PFMS-TXN-99103' },
+      { id: 'm3', title: 'Multi-Zone 30-Day Autonomous Flight Validation', dueDate: '2026-09-30', verified: false, amount: 350000, paymentStatus: 'Pending', txHash: null }
+    ],
+    telemetry: [
+      { week: 'W1', target: 70, actual: 68 },
+      { week: 'W2', target: 75, actual: 74 },
+      { week: 'W3', target: 80, actual: 82 },
+      { week: 'W4', target: 85, actual: 88 }
     ]
   },
   {
-    id: "PLT-2026-02",
-    challengeId: "CH-102",
-    challengeTitle: "Solar Grid Decentralized Monitoring",
-    startupName: "HelioTrack Labs",
-    solutionTitle: "Edge-IoT Inverter Efficiency Watcher",
-    department: "Renewable Energy Agency",
-    startDate: "2026-08-15",
-    endDate: "2026-11-30",
-    budgetAllocated: 520000,
-    budgetSpent: 390000,
-    status: "Active",
-    health: "At Risk",
-    overallProgress: 40,
+    id: 'PLT-2026-02',
+    startupName: 'HelioTrack Labs',
+    challengeTitle: 'Smart Solar Grid Optimization',
+    department: 'Urban Development Department',
+    status: 'At Risk',
+    deploymentProgress: 40,
+    budgetSpent: 300000,
+    totalBudget: 1200000,
     kpis: [
-      {
-        name: "Grid Fault Latency",
-        target: 30,
-        current: 58,
-        unit: "sec",
-        status: "At Risk"
-      },
-      {
-        name: "Transmission Loss Avoidance",
-        target: 12.0,
-        current: 8.5,
-        unit: "%",
-        status: "Warning"
-      }
-    ],
-    metricsHistory: [
-      { week: "Wk 1", targetEff: 60, actualEff: 55, binsActive: 10 },
-      { week: "Wk 2", targetEff: 68, actualEff: 60, binsActive: 22 },
-      { week: "Wk 3", targetEff: 75, actualEff: 66, binsActive: 35 },
-      { week: "Wk 4", targetEff: 82, actualEff: 70, binsActive: 48 }
+      { name: 'Grid Fault Latency', current: '58sec', goal: '30sec', status: 'At Risk' },
+      { name: 'Transmission Loss Avoidance', current: '8.5%', goal: '12%', status: 'Warning' }
     ],
     milestones: [
-      { id: 1, title: "Substation Gateway Installation", dueDate: "2026-08-30", completed: true },
-      { id: 2, title: "Edge Analytics Calibration", dueDate: "2026-09-20", completed: false },
-      { id: 3, title: "Multi-Substation Load Test", dueDate: "2026-10-30", completed: false }
+      { id: 'm201', title: 'Substation Gateway Installation', dueDate: '2026-08-30', verified: true, amount: 300000, paymentStatus: 'Disbursed', txHash: 'PFMS-TXN-88120' },
+      { id: 'm202', title: 'Edge Analytics Calibration', dueDate: '2026-09-20', verified: false, amount: 400000, paymentStatus: 'Pending', txHash: null },
+      { id: 'm203', title: 'Multi-Substation Load Test', dueDate: '2026-10-30', verified: false, amount: 500000, paymentStatus: 'Pending', txHash: null }
+    ],
+    telemetry: [
+      { week: 'W1', target: 50, actual: 45 },
+      { week: 'W2', target: 60, actual: 52 },
+      { week: 'W3', target: 70, actual: 61 }
     ]
   }
 ];
 
-export function getPilots() {
-  const stored = localStorage.getItem("startup2gov_pilots");
-  if (!stored) {
-    localStorage.setItem("startup2gov_pilots", JSON.stringify(INITIAL_PILOTS));
+export const getPilots = () => {
+  const data = localStorage.getItem(STORAGE_KEY);
+  if (!data) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(INITIAL_PILOTS));
     return INITIAL_PILOTS;
   }
-  try {
-    return JSON.parse(stored);
-  } catch {
-    return INITIAL_PILOTS;
-  }
-}
+  return JSON.parse(data);
+};
 
-export function savePilots(pilots) {
-  localStorage.setItem("startup2gov_pilots", JSON.stringify(pilots));
-}
-
-export function toggleMilestone(pilotId, milestoneId) {
+export const toggleMilestone = (pilotId, milestoneId) => {
   const pilots = getPilots();
-  const updated = pilots.map((p) => {
-    if (p.id !== pilotId) return p;
-    const nextMilestones = p.milestones.map((m) =>
-      m.id === milestoneId ? { ...m, completed: !m.completed } : m
-    );
-    const completedCount = nextMilestones.filter((m) => m.completed).length;
-    const progress = Math.round((completedCount / nextMilestones.length) * 100);
-    return {
-      ...p,
-      milestones: nextMilestones,
-      overallProgress: progress
-    };
-  });
-  savePilots(updated);
-  return updated;
-}
+  const pilot = pilots.find((p) => p.id === pilotId);
+  if (!pilot) return pilots;
+
+  const milestone = pilot.milestones.find((m) => m.id === milestoneId);
+  if (milestone) {
+    milestone.verified = !milestone.verified;
+    if (!milestone.verified && milestone.paymentStatus === 'Disbursed') {
+      milestone.paymentStatus = 'Pending';
+      pilot.budgetSpent = Math.max(0, pilot.budgetSpent - milestone.amount);
+    }
+  }
+
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(pilots));
+  return pilots;
+};
+
+export const disburseMilestonePayment = (pilotId, milestoneId) => {
+  const pilots = getPilots();
+  const pilot = pilots.find((p) => p.id === pilotId);
+  if (!pilot) return pilots;
+
+  const milestone = pilot.milestones.find((m) => m.id === milestoneId);
+  if (milestone && milestone.verified && milestone.paymentStatus !== 'Disbursed') {
+    milestone.paymentStatus = 'Disbursed';
+    milestone.txHash = `PFMS-TXN-${Math.floor(100000 + Math.random() * 900000)}`;
+    pilot.budgetSpent += milestone.amount;
+  }
+
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(pilots));
+  return pilots;
+};
