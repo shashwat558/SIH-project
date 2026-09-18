@@ -1,86 +1,87 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  TrendingUp, 
-  CheckCircle2, 
-  Clock, 
-  Calendar,
-  Layers,
-  Activity,
-  ArrowUpRight,
-  TrendingDown,
-  ShieldAlert
-} from 'lucide-react';
-import { 
-  ResponsiveContainer, 
-  LineChart, 
-  Line, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  Legend 
+import {
+  getPilots,
+  toggleMilestone,
+  disburseMilestonePayment
+} from '../../services/pilotService';
+import {
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid
 } from 'recharts';
-import { getPilots, toggleMilestone } from '../../services/pilotService';
+import {
+  CheckCircle,
+  Clock,
+  AlertTriangle,
+  TrendingUp,
+  DollarSign,
+  ArrowUpRight,
+  ShieldCheck,
+  CreditCard,
+  X
+} from 'lucide-react';
 
 export default function GovPilots() {
   const [pilots, setPilots] = useState([]);
-  const [selectedPilot, setSelectedPilot] = useState(null);
+  const [activePilotId, setActivePilotId] = useState('');
+  const [paymentModal, setPaymentModal] = useState(null);
 
   useEffect(() => {
-    const data = getPilots();
-    setPilots(data);
-    if (data.length > 0) {
-      setSelectedPilot(data[0]);
-    }
+    const loaded = getPilots();
+    setPilots(loaded);
+    if (loaded.length > 0) setActivePilotId(loaded[0].id);
   }, []);
 
-  const handleToggleMilestone = (milestoneId) => {
-    if (!selectedPilot) return;
-    const updated = toggleMilestone(selectedPilot.id, milestoneId);
-    setPilots(updated);
-    const refreshed = updated.find((p) => p.id === selectedPilot.id);
-    setSelectedPilot(refreshed);
+  const activePilot = pilots.find((p) => p.id === activePilotId) || pilots[0];
+
+  const handleMilestoneToggle = (mId) => {
+    const updated = toggleMilestone(activePilot.id, mId);
+    setPilots([...updated]);
   };
 
-  if (!selectedPilot) {
-    return (
-      <div style={{ padding: '2rem', textAlign: 'center', color: '#888' }}>
-        Loading Pilot Deployments...
-      </div>
-    );
+  const handleConfirmDisbursement = () => {
+    if (!paymentModal) return;
+    const updated = disburseMilestonePayment(activePilot.id, paymentModal.id);
+    setPilots([...updated]);
+    setPaymentModal(null);
+  };
+
+  if (!activePilot) {
+    return <div style={{ color: '#fff', padding: '2rem' }}>Loading Pilots...</div>;
   }
 
-  const budgetUsage = Math.round((selectedPilot.budgetSpent / selectedPilot.budgetAllocated) * 100);
+  const verifiedCount = activePilot.milestones.filter((m) => m.verified).length;
+  const budgetPercentage = Math.round((activePilot.budgetSpent / activePilot.totalBudget) * 100);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', paddingBottom: '3rem' }}>
-      {/* Topbar Header */}
-      <header className="topbar">
+    <div style={{ padding: '2rem', color: '#fff', maxWidth: '1400px', margin: '0 auto' }}>
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
-          <h1>Pilot Projects & KPI Monitoring</h1>
-          <p>
-            Member 5 • Real-world implementation health, milestone verification, and telemetry.
+          <h1 style={{ fontSize: '1.75rem', fontWeight: 800, margin: 0, letterSpacing: '-0.02em' }}>
+            PROJECTS & KPI MONITORING
+          </h1>
+          <p style={{ color: '#a1a1aa', margin: '0.35rem 0 0 0', fontSize: '0.875rem' }}>
+            Milestone verification, sensor telemetry, and performance-linked disbursements.
           </p>
         </div>
 
-        {/* Pilot Selector Dropdown */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <span style={{ fontSize: '0.8rem', color: '#888', textTransform: 'uppercase', fontWeight: 600 }}>
-            Active Pilot:
-          </span>
+          <span style={{ fontSize: '0.75rem', color: '#a1a1aa', fontWeight: 700 }}>ACTIVE PILOT:</span>
           <select
-            value={selectedPilot.id}
-            onChange={(e) => {
-              const p = pilots.find((item) => item.id === e.target.value);
-              if (p) setSelectedPilot(p);
-            }}
+            value={activePilot.id}
+            onChange={(e) => setActivePilotId(e.target.value)}
             style={{
-              padding: '0.5rem 0.85rem',
-              backgroundColor: '#1e222d',
+              backgroundColor: '#18181b',
               color: '#fff',
-              border: '1px solid #333a4d',
+              border: '1px solid #27272a',
               borderRadius: '8px',
-              fontSize: '0.875rem',
+              padding: '0.5rem 1rem',
+              fontWeight: 600,
               cursor: 'pointer'
             }}
           >
@@ -91,303 +92,239 @@ export default function GovPilots() {
             ))}
           </select>
         </div>
-      </header>
+      </div>
 
-      {/* Main Stats Row */}
-      <section className="stats">
-        <div className="stat-card">
-          <div className="stat-icon">
-            <Activity size={22} />
+      {/* Top Metrics Cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
+        <div style={{ backgroundColor: '#18181b', border: '1px solid #27272a', borderRadius: '12px', padding: '1.25rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', color: '#a1a1aa', marginBottom: '0.5rem' }}>
+            <span style={{ fontSize: '0.8rem', fontWeight: 600 }}>Deployment Progress</span>
+            <TrendingUp size={16} />
           </div>
-          <div>
-            <p>Overall Deployment</p>
-            <h2>{selectedPilot.overallProgress}%</h2>
+          <div style={{ fontSize: '1.6rem', fontWeight: 700 }}>{activePilot.deploymentProgress}%</div>
+        </div>
+
+        <div style={{ backgroundColor: '#18181b', border: '1px solid #27272a', borderRadius: '12px', padding: '1.25rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', color: '#a1a1aa', marginBottom: '0.5rem' }}>
+            <span style={{ fontSize: '0.8rem', fontWeight: 600 }}>Health Status</span>
+            <AlertTriangle size={16} color={activePilot.status === 'On Track' ? '#22c55e' : '#f59e0b'} />
+          </div>
+          <div style={{ fontSize: '1.6rem', fontWeight: 700, color: activePilot.status === 'On Track' ? '#22c55e' : '#f59e0b' }}>
+            {activePilot.status}
           </div>
         </div>
 
-        <div className="stat-card">
-          <div className="stat-icon">
-            <Calendar size={22} />
+        <div style={{ backgroundColor: '#18181b', border: '1px solid #27272a', borderRadius: '12px', padding: '1.25rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', color: '#a1a1aa', marginBottom: '0.5rem' }}>
+            <span style={{ fontSize: '0.8rem', fontWeight: 600 }}>Milestones Verified</span>
+            <CheckCircle size={16} />
           </div>
-          <div>
-            <p>Pilot Phase Status</p>
-            <h2 style={{ color: selectedPilot.health === 'On Track' ? '#10b981' : '#f59e0b', fontSize: '1.25rem' }}>
-              {selectedPilot.health}
-            </h2>
+          <div style={{ fontSize: '1.6rem', fontWeight: 700 }}>
+            {verifiedCount} / {activePilot.milestones.length}
           </div>
         </div>
 
-        <div className="stat-card">
-          <div className="stat-icon">
-            <Layers size={22} />
+        <div style={{ backgroundColor: '#18181b', border: '1px solid #27272a', borderRadius: '12px', padding: '1.25rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', color: '#a1a1aa', marginBottom: '0.5rem' }}>
+            <span style={{ fontSize: '0.8rem', fontWeight: 600 }}>Funds Disbursed</span>
+            <DollarSign size={16} />
           </div>
-          <div>
-            <p>Milestones Verified</p>
-            <h2>
-              {selectedPilot.milestones.filter((m) => m.completed).length} / {selectedPilot.milestones.length}
-            </h2>
-          </div>
-        </div>
-
-        <div className="stat-card">
-          <div className="stat-icon">
-            <Clock size={22} />
-          </div>
-          <div>
-            <p>Budget Utilized</p>
-            <h2>{budgetUsage}%</h2>
-          </div>
-        </div>
-      </section>
-
-      {/* Pilot Overview Banner */}
-      <div 
-        style={{
-          backgroundColor: '#151821',
-          border: '1px solid #272c3d',
-          borderRadius: '12px',
-          padding: '1.25rem 1.5rem',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: '1rem'
-        }}
-      >
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, color: '#fff' }}>
-              {selectedPilot.startupName}
-            </h2>
-            <span
-              style={{
-                backgroundColor: selectedPilot.health === 'On Track' ? 'rgba(16,185,129,0.15)' : 'rgba(245,158,11,0.15)',
-                color: selectedPilot.health === 'On Track' ? '#34d399' : '#fbbf24',
-                padding: '0.2rem 0.6rem',
-                borderRadius: '9999px',
-                fontSize: '0.75rem',
-                fontWeight: 600
-              }}
-            >
-              {selectedPilot.solutionTitle}
-            </span>
-          </div>
-          <p style={{ margin: '0.4rem 0 0 0', color: '#94a3b8', fontSize: '0.85rem' }}>
-            Linked Challenge: <strong style={{ color: '#cbd5e1' }}>{selectedPilot.challengeTitle}</strong> • {selectedPilot.department}
-          </p>
-        </div>
-
-        <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center' }}>
-          <div>
-            <span style={{ fontSize: '0.75rem', color: '#64748b', textTransform: 'uppercase' }}>Timeline Window</span>
-            <div style={{ color: '#e2e8f0', fontSize: '0.875rem', fontWeight: 600 }}>
-              {selectedPilot.startDate} → {selectedPilot.endDate}
-            </div>
-          </div>
-          <div>
-            <span style={{ fontSize: '0.75rem', color: '#64748b', textTransform: 'uppercase' }}>Funding Released</span>
-            <div style={{ color: '#e2e8f0', fontSize: '0.875rem', fontWeight: 600 }}>
-              ₹{selectedPilot.budgetSpent.toLocaleString()} / ₹{selectedPilot.budgetAllocated.toLocaleString()}
-            </div>
+          <div style={{ fontSize: '1.6rem', fontWeight: 700 }}>
+            {budgetPercentage}% <span style={{ fontSize: '0.8rem', color: '#71717a' }}>(₹{(activePilot.budgetSpent / 100000).toFixed(1)}L / ₹{(activePilot.totalBudget / 100000).toFixed(1)}L)</span>
           </div>
         </div>
       </div>
 
-      {/* Main Grid: Telemetry Chart & Milestone Checklist */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem' }}>
-        
-        {/* Left Side: Interactive Recharts Graph & KPI Cards */}
-        <div 
-          style={{
-            gridColumn: 'span 2',
-            backgroundColor: '#151821',
-            border: '1px solid #272c3d',
-            borderRadius: '12px',
-            padding: '1.5rem',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '1.25rem'
-          }}
-        >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div>
-              <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <TrendingUp size={18} color="#3b82f6" />
-                Live Telemetry: Target vs Actual Efficiency Trend
-              </h3>
-              <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.75rem', color: '#94a3b8' }}>
-                Weekly performance benchmarks monitored via sensor telemetry
-              </p>
-            </div>
+      {/* Main Grid */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '1.5rem', marginBottom: '1.5rem' }}>
+        {/* Milestone Verification & Payment List */}
+        <div style={{ backgroundColor: '#18181b', border: '1px solid #27272a', borderRadius: '12px', padding: '1.5rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+            <h3 style={{ fontSize: '1.1rem', fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <ShieldCheck size={18} color="#eab308" /> Delivery Milestones & Payouts
+            </h3>
+            <span style={{ fontSize: '0.75rem', color: '#a1a1aa' }}>ESCROW PROTECTED</span>
           </div>
 
-          {/* Chart Container */}
-          <div style={{ height: '260px', width: '100%', marginTop: '0.5rem' }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={selectedPilot.metricsHistory}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#232838" />
-                <XAxis dataKey="week" stroke="#64748b" fontSize={12} />
-                <YAxis unit="%" stroke="#64748b" fontSize={12} domain={[40, 100]} />
-                <Tooltip 
-                  contentStyle={{ backgroundColor: '#1e222d', borderColor: '#333a4d', borderRadius: '8px', color: '#fff' }} 
-                />
-                <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '8px' }} />
-                <Line 
-                  type="monotone" 
-                  dataKey="targetEff" 
-                  name="Target Efficiency" 
-                  stroke="#64748b" 
-                  strokeDasharray="4 4" 
-                  strokeWidth={2}
-                />
-                <Line 
-                  type="monotone" 
-                  dataKey="actualEff" 
-                  name="Live Efficiency" 
-                  stroke="#3b82f6" 
-                  strokeWidth={3} 
-                  activeDot={{ r: 6 }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-
-          {/* Specific KPIs */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem', marginTop: '0.5rem' }}>
-            {selectedPilot.kpis.map((kpi, idx) => (
-              <div 
-                key={idx}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+            {activePilot.milestones.map((m) => (
+              <div
+                key={m.id}
                 style={{
-                  backgroundColor: '#1b202c',
-                  border: '1px solid #2a3144',
-                  borderRadius: '10px',
-                  padding: '1rem'
+                  padding: '1rem',
+                  borderRadius: '8px',
+                  backgroundColor: m.verified ? '#14291f' : '#27272a',
+                  border: m.verified ? '1px solid #15803d' : '1px solid #3f3f46',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  gap: '0.75rem'
                 }}
               >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: 600 }}>{kpi.name}</span>
-                  <span 
-                    style={{
-                      fontSize: '0.65rem',
-                      padding: '0.15rem 0.45rem',
-                      borderRadius: '4px',
-                      fontWeight: 700,
-                      backgroundColor: kpi.status === 'Good' || kpi.status === 'Optimal' ? 'rgba(16,185,129,0.2)' : 'rgba(239,68,68,0.2)',
-                      color: kpi.status === 'Good' || kpi.status === 'Optimal' ? '#34d399' : '#f87171'
-                    }}
-                  >
-                    {kpi.status}
-                  </span>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem', flex: 1 }}>
+                  <input
+                    type="checkbox"
+                    checked={m.verified}
+                    onChange={() => handleMilestoneToggle(m.id)}
+                    style={{ marginTop: '0.25rem', width: '18px', height: '18px', cursor: 'pointer' }}
+                  />
+                  <div>
+                    <div style={{ fontSize: '0.9rem', fontWeight: 600, color: m.verified ? '#4ade80' : '#fff' }}>
+                      {m.title}
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: '#a1a1aa', marginTop: '0.2rem' }}>
+                      Due: {m.dueDate} • Tranche: <strong style={{ color: '#fff' }}>₹{(m.amount).toLocaleString('en-IN')}</strong>
+                    </div>
+                    {m.txHash && (
+                      <div style={{ fontSize: '0.7rem', color: '#22c55e', marginTop: '0.2rem' }}>
+                        Ref: {m.txHash}
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <div style={{ marginTop: '0.5rem', display: 'flex', alignItems: 'baseline', gap: '0.5rem' }}>
-                  <span style={{ fontSize: '1.25rem', fontWeight: 800, color: '#fff' }}>
-                    {kpi.current}{kpi.unit}
-                  </span>
-                  <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
-                    / goal {kpi.target}{kpi.unit}
-                  </span>
+
+                <div>
+                  {m.paymentStatus === 'Disbursed' ? (
+                    <span style={{ fontSize: '0.75rem', padding: '0.3rem 0.6rem', borderRadius: '4px', backgroundColor: '#15803d', color: '#fff', fontWeight: 600 }}>
+                      Disbursed
+                    </span>
+                  ) : m.verified ? (
+                    <button
+                      onClick={() => setPaymentModal(m)}
+                      style={{
+                        padding: '0.4rem 0.8rem',
+                        backgroundColor: '#eab308',
+                        color: '#000',
+                        border: 'none',
+                        borderRadius: '6px',
+                        fontSize: '0.75rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.35rem'
+                      }}
+                    >
+                      <CreditCard size={14} /> Disburse
+                    </button>
+                  ) : (
+                    <span style={{ fontSize: '0.75rem', padding: '0.3rem 0.6rem', borderRadius: '4px', backgroundColor: '#3f3f46', color: '#a1a1aa' }}>
+                      Awaiting Sign-off
+                    </span>
+                  )}
                 </div>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Right Side: Interactive Milestones Checklist */}
-        <div 
-          style={{
-            backgroundColor: '#151821',
-            border: '1px solid #272c3d',
-            borderRadius: '12px',
-            padding: '1.5rem',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'space-between'
-          }}
-        >
-          <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-              <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <Layers size={18} color="#eab308" />
-                Delivery Milestones
-              </h3>
-              <span style={{ fontSize: '0.7rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                Sign-off
-              </span>
-            </div>
-            <p style={{ fontSize: '0.75rem', color: '#94a3b8', margin: '0 0 1rem 0' }}>
-              Verify field deliveries by checking completed milestones:
-            </p>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-              {selectedPilot.milestones.map((m) => (
-                <div
-                  key={m.id}
-                  onClick={() => handleToggleMilestone(m.id)}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'flex-start',
-                    gap: '0.75rem',
-                    padding: '0.85rem',
-                    borderRadius: '8px',
-                    border: m.completed ? '1px solid #065f46' : '1px solid #282f42',
-                    backgroundColor: m.completed ? 'rgba(6,95,70,0.2)' : '#1b202c',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s ease'
-                  }}
-                >
-                  <input
-                    type="checkbox"
-                    checked={m.completed}
-                    onChange={() => {}}
-                    style={{ marginTop: '0.2rem', accentColor: '#10b981', cursor: 'pointer' }}
-                  />
-                  <div style={{ flex: 1 }}>
-                    <p 
-                      style={{ 
-                        margin: 0, 
-                        fontSize: '0.8rem', 
-                        fontWeight: 600, 
-                        color: m.completed ? '#6ee7b7' : '#e2e8f0',
-                        textDecoration: m.completed ? 'line-through' : 'none'
-                      }}
-                    >
-                      {m.title}
-                    </p>
-                    <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.7rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                      <Clock size={12} /> Due: {m.dueDate}
-                    </p>
-                  </div>
+        {/* Telemetry & KPIs */}
+        <div style={{ backgroundColor: '#18181b', border: '1px solid #27272a', borderRadius: '12px', padding: '1.5rem' }}>
+          <h3 style={{ fontSize: '1.1rem', fontWeight: 700, margin: '0 0 1rem 0' }}>Field Performance Benchmarks</h3>
+          
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '1.25rem' }}>
+            {activePilot.kpis.map((kpi, idx) => (
+              <div key={idx} style={{ backgroundColor: '#27272a', padding: '0.85rem', borderRadius: '8px' }}>
+                <div style={{ fontSize: '0.75rem', color: '#a1a1aa' }}>{kpi.name}</div>
+                <div style={{ fontSize: '1.2rem', fontWeight: 700, marginTop: '0.2rem' }}>
+                  {kpi.current} <span style={{ fontSize: '0.7rem', color: '#71717a' }}>/ {kpi.goal}</span>
                 </div>
-              ))}
-            </div>
+              </div>
+            ))}
           </div>
 
-          <div style={{ marginTop: '1.5rem', paddingTop: '1rem', borderTop: '1px solid #272c3d' }}>
-            <button
-              onClick={() => alert(`Official verification certificate generated for ${selectedPilot.startupName}!`)}
-              style={{
-                width: '100%',
-                padding: '0.75rem',
-                backgroundColor: '#eab308',
-                color: '#000',
-                border: 'none',
-                borderRadius: '8px',
-                fontWeight: 700,
-                fontSize: '0.85rem',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '0.5rem',
-                cursor: 'pointer'
-              }}
-            >
-              Export Pilot Progress Certificate
-              <ArrowUpRight size={16} />
-            </button>
+          <div style={{ height: '180px', width: '100%' }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={activePilot.telemetry}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
+                <XAxis dataKey="week" stroke="#71717a" fontSize={12} />
+                <YAxis stroke="#71717a" fontSize={12} domain={[0, 100]} />
+                <Tooltip contentStyle={{ backgroundColor: '#09090b', border: '1px solid #27272a' }} />
+                <Line type="monotone" dataKey="actual" stroke="#eab308" strokeWidth={2} dot={{ fill: '#eab308' }} />
+                <Line type="monotone" dataKey="target" stroke="#71717a" strokeDasharray="4 4" />
+              </LineChart>
+            </ResponsiveContainer>
           </div>
         </div>
-
       </div>
+
+      {/* Simulated PFMS Payment Modal */}
+      {paymentModal && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.75)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: '#18181b',
+              border: '1px solid #3f3f46',
+              borderRadius: '12px',
+              padding: '2rem',
+              maxWidth: '480px',
+              width: '90%'
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <CreditCard color="#eab308" />
+                <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 700 }}>Release Milestone Payment</h3>
+              </div>
+              <X size={20} style={{ cursor: 'pointer', color: '#a1a1aa' }} onClick={() => setPaymentModal(null)} />
+            </div>
+
+            <p style={{ fontSize: '0.85rem', color: '#d4d4d8', marginBottom: '1.25rem', lineHeight: '1.4' }}>
+              This action authorizes the direct release of public funds from the departmental escrow account via the Public Financial Management System (PFMS).
+            </p>
+
+            <div style={{ backgroundColor: '#27272a', padding: '1rem', borderRadius: '8px', fontSize: '0.85rem', marginBottom: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              <div><strong>Recipient Startup:</strong> {activePilot.startupName}</div>
+              <div><strong>Milestone:</strong> {paymentModal.title}</div>
+              <div><strong>Tranche Amount:</strong> ₹{paymentModal.amount.toLocaleString('en-IN')}</div>
+              <div><strong>Validation Status:</strong> <span style={{ color: '#4ade80' }}>Field Delivery Verified</span></div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setPaymentModal(null)}
+                style={{
+                  padding: '0.6rem 1.2rem',
+                  borderRadius: '6px',
+                  backgroundColor: '#27272a',
+                  color: '#fff',
+                  border: '1px solid #3f3f46',
+                  cursor: 'pointer'
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmDisbursement}
+                style={{
+                  padding: '0.6rem 1.2rem',
+                  borderRadius: '6px',
+                  backgroundColor: '#eab308',
+                  color: '#000',
+                  fontWeight: 700,
+                  border: 'none',
+                  cursor: 'pointer'
+                }}
+              >
+                Confirm PFMS Transfer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
