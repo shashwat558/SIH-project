@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 
+import { QRCodeSVG } from "qrcode.react";
+
 import {
   TrendingUp,
   CheckCircle2,
@@ -23,12 +25,23 @@ import {
   Legend
 } from 'recharts';
 
-import { getPilots, toggleMilestone } from '../../services/pilotService';
+import {
+  getPilots,
+  toggleMilestone,
+  disburseMilestonePayment,
+  generatePilotCertificate
+} from '../../services/pilotService';
+
 
 export default function GovPilots() {
   const [pilots, setPilots] = useState([]);
   const [selectedPilot, setSelectedPilot] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [paymentMilestone, setPaymentMilestone] = useState(null);
+const [paymentMethod, setPaymentMethod] = useState('PFMS');
+const [paymentRemarks, setPaymentRemarks] = useState('');
+const [certificateData, setCertificateData] = useState(null);
+const [showCertificateModal, setShowCertificateModal] = useState(false);
 
   // ==========================================
   // LOAD PILOTS FROM SUPABASE
@@ -83,6 +96,19 @@ export default function GovPilots() {
       alert('Unable to update milestone.');
     }
   };
+  const handleDisbursePayment = (milestoneId) => {
+  if (!selectedPilot) return;
+
+  const milestone = selectedPilot.milestones.find(
+    (m) => m.id === milestoneId
+  );
+
+  if (!milestone) return;
+
+  setPaymentMilestone(milestone);
+  setPaymentMethod('PFMS');
+  setPaymentRemarks('');
+};
 
   // ==========================================
   // LOADING
@@ -719,17 +745,33 @@ export default function GovPilots() {
                 Delivery Milestones
               </h3>
 
-              <span
-                style={{
-                  fontSize: '0.7rem',
-                  color: '#64748b',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.05em'
-                }}
-              >
-                Sign-off
-              </span>
+             <button
+  onClick={() => {
+    const incompleteMilestone = selectedPilot.milestones.find(
+      (m) => !m.completed
+    );
 
+    if (incompleteMilestone) {
+      handleToggleMilestone(incompleteMilestone.id);
+    } else {
+      alert('All milestones have already been signed off.');
+    }
+  }}
+  style={{
+    padding: '0.4rem 0.75rem',
+    backgroundColor: '#10b981',
+    color: '#fff',
+    border: 'none',
+    borderRadius: '6px',
+    fontSize: '0.7rem',
+    fontWeight: 700,
+    cursor: 'pointer',
+    textTransform: 'uppercase',
+    letterSpacing: '0.05em'
+  }}
+>
+  Sign-off
+</button>
             </div>
 
             <p
@@ -823,7 +865,32 @@ export default function GovPilots() {
                       <Clock size={12} />
                       Due: {m.dueDate}
                     </p>
-
+                      {m.completed && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDisbursePayment(m.id);
+                      }}
+                      disabled={m.paymentStatus === 'Paid'}
+                      style={{
+                        marginTop: '0.6rem',
+                        padding: '0.45rem 0.7rem',
+                        backgroundColor:
+                          m.paymentStatus === 'Paid' ? '#374151' : '#3b82f6',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: '6px',
+                        fontSize: '0.7rem',
+                        fontWeight: 700,
+                        cursor:
+                          m.paymentStatus === 'Paid' ? 'default' : 'pointer'
+                      }}
+                    >
+                      {m.paymentStatus === 'Paid'
+                        ? 'Paid'
+                        : `Disburse ₹${Number(m.amount || 0).toLocaleString()}`}
+                    </button>
+)}
                   </div>
 
                 </div>
@@ -846,11 +913,17 @@ export default function GovPilots() {
           >
 
             <button
-              onClick={() =>
-                alert(
-                  `Official verification certificate generated for ${selectedPilot.startupName}!`
-                )
-              }
+  type="button"
+  onClick={async () => {
+  try {
+    const certificate = await generatePilotCertificate(selectedPilot.id);
+
+    setCertificateData(certificate);
+    setShowCertificateModal(true);
+  } catch (error) {
+    alert(error.message || "Failed to generate certificate.");
+  }
+}}
               style={{
                 width: '100%',
                 padding: '0.75rem',
@@ -874,10 +947,482 @@ export default function GovPilots() {
 
           </div>
 
+        </div>    </div>
+
+    {paymentMilestone && (
+      <div
+        style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(0,0,0,0.65)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000
+        }}
+        onClick={() => setPaymentMilestone(null)}
+      >
+        <div
+          style={{
+            width: '420px',
+            background: '#111827',
+            border: '1px solid #374151',
+            borderRadius: '12px',
+            padding: '1.5rem',
+            color: '#fff'
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <h2 style={{ marginTop: 0 }}>Milestone Payment</h2>
+
+          <p style={{ color: '#9ca3af' }}>
+            {paymentMilestone.title}
+          </p>
+
+          <div
+            style={{
+              background: '#1f2937',
+              padding: '1rem',
+              borderRadius: '8px',
+              marginBottom: '1rem'
+            }}
+          >
+            <div style={{ color: '#9ca3af', fontSize: '0.8rem' }}>
+              Payment Amount
+            </div>
+
+            <strong style={{ fontSize: '1.5rem' }}>
+              ₹{Number(paymentMilestone.amount || 0).toLocaleString('en-IN')}
+            </strong>
+          </div>
+
+          <label style={{ fontSize: '0.8rem', color: '#9ca3af' }}>
+            Payment Method
+          </label>
+
+          <select
+            value={paymentMethod}
+            onChange={(e) => setPaymentMethod(e.target.value)}
+            style={{
+              width: '100%',
+              marginTop: '0.4rem',
+              marginBottom: '1rem',
+              padding: '0.65rem',
+              background: '#1f2937',
+              color: '#fff',
+              border: '1px solid #374151',
+              borderRadius: '6px'
+            }}
+          >
+            <option value="PFMS">PFMS</option>
+            <option value="NEFT/RTGS">NEFT / RTGS</option>
+            <option value="Bank Transfer">Bank Transfer</option>
+            <option value="UPI">UPI</option>
+            <option value="Net Banking">Net Banking</option>
+          </select>
+
+          <label style={{ fontSize: '0.8rem', color: '#9ca3af' }}>
+            Remarks
+          </label>
+
+          <textarea
+            value={paymentRemarks}
+            onChange={(e) => setPaymentRemarks(e.target.value)}
+            placeholder="Enter payment remarks..."
+            rows={3}
+            style={{
+              width: '100%',
+              boxSizing: 'border-box',
+              marginTop: '0.4rem',
+              padding: '0.65rem',
+              background: '#1f2937',
+              color: '#fff',
+              border: '1px solid #374151',
+              borderRadius: '6px',
+              resize: 'vertical'
+            }}
+          />
+
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'flex-end',
+              gap: '0.75rem',
+              marginTop: '1.25rem'
+            }}
+          >
+            <button
+              onClick={() => setPaymentMilestone(null)}
+              style={{
+                padding: '0.6rem 1rem',
+                background: '#374151',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: 'pointer'
+              }}
+            >
+              Cancel
+            </button>
+
+            <button
+              onClick={async () => {
+                try {
+                  await disburseMilestonePayment(
+                    selectedPilot.id,
+                    paymentMilestone.id
+                  );
+
+                  const updatedPilots = await getPilots();
+
+                  setPilots(updatedPilots);
+
+                  const updatedPilot = updatedPilots.find(
+                    (p) => p.id === selectedPilot.id
+                  );
+
+                  setSelectedPilot(updatedPilot || null);
+                  setPaymentMilestone(null);
+
+                  alert('Payment marked as paid successfully.');
+                } catch (error) {
+                  console.error('Payment Error:', error);
+                  alert(error.message || 'Payment failed.');
+                }
+              }}
+              style={{
+                padding: '0.6rem 1rem',
+                background: '#10b981',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontWeight: 700
+              }}
+            >
+              Confirm & Disburse
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+  
+  
+
+
+{showCertificateModal && certificateData && (
+  <div
+    style={{
+      position: 'fixed',
+      inset: 0,
+      background: 'rgba(0, 0, 0, 0.6)',
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+      zIndex: 1000,
+      padding: '20px'
+    }}
+  >
+    <div
+      style={{
+        background: '#18191c',
+        width: '100%',
+        maxWidth: '850px',
+        maxHeight: '90vh',
+        overflowY: 'auto',
+        borderRadius: '16px',
+        padding: '30px',
+        position: 'relative',
+        boxShadow: '0 20px 50px rgba(0,0,0,0.25)'
+      }}
+    >
+
+      {/* Close Button */}
+      <button
+        onClick={() => setShowCertificateModal(false)}
+        style={{
+          position: 'absolute',
+          top: '15px',
+          right: '15px',
+          border: 'none',
+          background: '#f1f5f9',
+          borderRadius: '50%',
+          width: '36px',
+          height: '36px',
+          cursor: 'pointer',
+          fontSize: '20px'
+        }}
+      >
+        ×
+      </button>
+
+      {/* Certificate Header */}
+      <div
+        style={{
+          textAlign: 'center',
+          borderBottom: '1px solid' ,color:'#bec3d2',
+          paddingBottom: '20px',
+          marginBottom: '25px'
+        }}
+      >
+        <h2
+          style={{
+            margin: 0,
+            fontSize: '28px',
+            fontWeight: '700',
+            color: '#eaf0f2'
+          }}
+        >
+          PILOT COMPLETION CERTIFICATE
+        </h2>
+
+        <p
+          style={{
+            marginTop: '8px',
+            color: 'cdeb9e'
+          }}
+        >
+          Startup2Gov Pilot Programme
+        </p>
+      </div>
+
+      {/* Certificate Details + QR */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 220px',
+          gap: '30px',
+          alignItems: 'center',
+          color:'#eaf0f2'
+        }}
+      >
+
+        {/* Details */}
+        <div>
+
+          <div style={{ marginBottom: '18px',
+            color:'#cdeb9e'
+            
+           }}>
+            <strong>Startup</strong>
+            <p style={{ margin: '5px 0', color: '#a1b7be' }}>
+              {certificateData.startup_name}
+            </p>
+          </div>
+
+          <div style={{ marginBottom: '18px',color:'#cdeb9e'  }}>
+            <strong>Solution</strong>
+            <p style={{ margin: '5px 0', color: '#e0e6ef' }}>
+              {certificateData.solution_title}
+            </p>
+          </div>
+
+          <div style={{ marginBottom: '18px' ,
+            color:'#cdeb9e'
+          }}>
+            <strong>Department</strong>
+            <p style={{ margin: '5px 0', color: '#e0e6ef' }}>
+              {certificateData.department || 'Government Department'}
+            </p>
+          </div>
+
+          <div style={{ marginBottom: '18px',color:'#cdeb9e' }}>
+            <strong>Issue Date</strong>
+            <p style={{ margin: '5px 0', color: '#e0e6ef' }}>
+              {certificateData.issue_date}
+            </p>
+          </div>
+
+          <div style={{ marginBottom: '18px',color:'#cdeb9e' }}>
+            <strong>Certificate ID</strong>
+            <p
+              style={{
+                margin: '5px 0',
+                color: '#e0e6ef',
+                fontFamily: 'monospace',
+                wordBreak: 'break-all'
+              }}
+            >
+              {certificateData.certificate_id}
+            </p>
+          </div>
+
+          {/* Verified Status */}
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '8px 14px',
+              borderRadius: '20px',
+              background: '#abb3ae',
+              color: '#166534',
+              fontWeight: '600'
+            }}
+          >
+            ✓ Certificate Verified
+          </div>
+
+        </div>
+
+        {/* QR Code */}
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '12px'
+          }}
+        >
+
+          <div
+            style={{
+              padding: '15px',
+              border: '1px solid #e2e8f0',
+              borderRadius: '12px',
+              background: '#fffdfd'
+            }}
+          >
+         <QRCodeSVG
+  value={`${window.location.origin}/verify-certificate?certificateId=${encodeURIComponent(
+    certificateData.certificate_id
+  )}`}
+  size={170}
+  level="H"
+/>
+          </div>
+
+          <span
+            style={{
+              fontSize: '13px',
+              color: '#aeb6c0',
+              textAlign: 'center'
+            }}
+          >
+            Scan to verify certificate
+          </span>
+
         </div>
 
       </div>
 
+      {/* Verification Section */}
+      <div
+        style={{
+          marginTop: '30px',
+          padding: '22px',
+          background: '#b8bbbf',
+          borderRadius: '12px',
+          border: '1px solid #e2e8f0'
+        }}
+      >
+
+        <h3
+          style={{
+            marginTop: 0,
+            marginBottom: '8px',
+            color:'#45552b'
+          }}
+        >
+          Verify Certificate
+        </h3>
+
+        <p
+          style={{
+            color: '#424952',
+            fontSize: '14px'
+          }}
+        >
+          Anyone with the Certificate ID can verify this certificate.
+        </p>
+
+        <div
+          style={{
+            display: 'flex',
+            gap: '10px',
+            flexWrap: 'wrap',
+            marginTop: '15px'
+          }}
+        >
+
+          <input
+            type="text"
+            value={certificateData.certificate_id}
+            readOnly
+            style={{
+              flex: 1,
+              minWidth: '250px',
+              padding: '11px 13px',
+              border: '1px solid #cbd5e1',
+              borderRadius: '8px',
+              fontFamily: 'monospace'
+            }}
+          />
+
+          <button
+            onClick={() => {
+              alert(
+                `Certificate Verified Successfully!\n\nCertificate ID: ${certificateData.certificate_id}\nStartup: ${certificateData.startup_name}`
+              );
+            }}
+            style={{
+              padding: '11px 18px',
+              border: 'none',
+              borderRadius: '8px',
+              background: '#1d4f29',
+              color: '#ffffff',
+              fontWeight: '600',
+              cursor: 'pointer'
+            }}
+          >
+            Verify Certificate
+          </button>
+
+        </div>
+
+        <div
+          style={{
+            marginTop: '18px',
+            padding: '12px 15px',
+            background: '#dcfce7',
+            color: '#166534',
+            borderRadius: '8px',
+            fontWeight: '600'
+          }}
+        >
+          ✓ Certificate is valid and verified in Startup2Gov
+        </div>
+
+      </div>
+
+      {/* Footer */}
+      <div
+        style={{
+          marginTop: '25px',
+          display: 'flex',
+          justifyContent: 'flex-end'
+        }}
+      >
+        <button
+          onClick={() => setShowCertificateModal(false)}
+          style={{
+            padding: '10px 20px',
+            border: '1px solid #cbd5e1',
+            background: '#ffffff',
+            borderRadius: '8px',
+            cursor: 'pointer'
+          }}
+        >
+          Close
+        </button>
+      </div>
+
     </div>
+  </div>
+)}
+</div>
   );
 }
+
+      
+

@@ -1,3 +1,4 @@
+import VerifyCertificate from "./pages/VerifyCertificate";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext.jsx";
 import { ThemeProvider } from "./context/ThemeContext.jsx";
@@ -39,6 +40,10 @@ function App() {
               </ProtectedRoute>
             }
           >
+            <Route
+           path="/verify-certificate"
+          element={<VerifyCertificate />}
+          />
             <Route path="/dashboard" element={<StartupDashboard />} />
             <Route path="/profile" element={<StartupProfile />} />
             <Route path="/challenges" element={<BrowseChallenges />} />
