@@ -1,48 +1,6 @@
-import {
-  KEYS,
-  setJSON,
-  nextApplicationId,
-  seedApplications,
-  todayLabel,
-  delay,
-} from "./mockDb.js";
+import { supabase } from "../lib/supabaseClient";
 import { logActivity } from "./activity.js";
 import { clearDraft } from "./drafts.js";
-
-function allApplications() {
-  return seedApplications();
-}
-
-// Visible = own submissions + demo seed rows (so a fresh account still sees the sample history).
-function visibleFor(userId) {
-  return allApplications().filter(
-    (a) => a.userId === userId || a.userId === null
-  );
-}
-
-export async function getApplications(userId) {
-  await delay(250);
-  return visibleFor(userId).slice().reverse();
-}
-
-export async function getRecentApplications(userId, limit = 3) {
-  const apps = await getApplications(userId);
-  return apps.slice(0, limit);
-}
-
-export async function getStats(userId, totalChallenges) {
-  const apps = visibleFor(userId);
-  const inProgress = apps.filter(
-    (a) => a.status === "Pending" || a.status === "Under Review"
-  ).length;
-  const approved = apps.filter((a) => a.status === "Approved").length;
-  return {
-    available: totalChallenges,
-    submitted: apps.length,
-    inProgress,
-    approved,
-  };
-}
 
 export const APPLICATION_STATUSES = [
   "Pending",
@@ -58,11 +16,128 @@ export const REVIEW_TRANSITIONS = {
   Rejected: ["Under Review", "Pending"],
 };
 
-export async function hasApplied(userId, challengeId) {
-  await delay(100);
-  return visibleFor(userId).some(
-    (a) => Number(a.challengeId) === Number(challengeId) && a.userId === userId
+function mapApplication(row) {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    startupId: row.startup_id,
+    challengeId: row.challenge_id,
+    challenge: row.challenge_title || "",
+    solution: row.solution_title || "",
+    department: row.department || "",
+    submittedOn: row.submitted_at
+      ? new Date(row.submitted_at).toLocaleDateString("en-IN", {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+        })
+      : "",
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    status: row.status,
+    startupName: row.startup_name,
+    contactPerson: row.contact_person || "",
+    solutionDescription: row.solution_description || "",
+    challengeSolution: row.challenge_solution || "",
+    expectedImpact: row.expected_impact || "",
+    technology: row.technology || "",
+    document: row.document_name
+      ? {
+          name: row.document_name,
+          size: row.document_size,
+          type: row.document_type,
+          path: row.document_path,
+        }
+      : null,
+    reviewNote: row.review_note || "",
+    reviewedBy: row.reviewed_by || null,
+    reviewedAt: row.reviewed_at || null,
+  };
+}
+
+async function getChallengeDetails(challengeId) {
+  const { data, error } = await supabase
+    .from("challenges")
+    .select("id, title, department")
+    .eq("id", challengeId)
+    .single();
+
+  if (error) {
+    throw new Error(`Challenge not found: ${error.message}`);
+  }
+
+  return data;
+}
+
+export async function getApplications(userId) {
+  if (!userId) throw new Error("Not authenticated");
+
+  const { data, error } = await supabase
+    .from("applications")
+    .select(`
+      *,
+      challenges (
+        title,
+        department
+      )
+    `)
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("Error loading applications:", error);
+    throw new Error(error.message);
+  }
+
+  return (data || []).map((row) =>
+    mapApplication({
+      ...row,
+      challenge_title: row.challenges?.title || "",
+      department: row.challenges?.department || "",
+    })
   );
+}
+
+export async function getRecentApplications(userId, limit = 3) {
+  const apps = await getApplications(userId);
+  return apps.slice(0, limit);
+}
+
+export async function getStats(userId, totalChallenges) {
+  const apps = await getApplications(userId);
+
+  const inProgress = apps.filter(
+    (a) => a.status === "Pending" || a.status === "Under Review"
+  ).length;
+
+  const approved = apps.filter(
+    (a) => a.status === "Approved"
+  ).length;
+
+  return {
+    available: totalChallenges,
+    submitted: apps.length,
+    inProgress,
+    approved,
+  };
+}
+
+export async function hasApplied(userId, challengeId) {
+  if (!userId) return false;
+
+  const { data, error } = await supabase
+    .from("applications")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("challenge_id", challengeId)
+    .maybeSingle();
+
+  if (error) {
+    console.error("Error checking application:", error);
+    throw new Error(error.message);
+  }
+
+  return Boolean(data);
 }
 
 export async function submitApplication({
@@ -77,88 +152,147 @@ export async function submitApplication({
   technology,
   document,
 }) {
-  await delay(350);
   if (!userId) throw new Error("Not authenticated");
   if (!challenge) throw new Error("Challenge not found");
-  if (await hasApplied(userId, challenge.id)) {
+
+  const alreadyApplied = await hasApplied(userId, challenge.id);
+
+  if (alreadyApplied) {
     throw new Error("You have already applied to this challenge.");
   }
-  const nowISO = new Date().toISOString();
+
+  const { data: startup } = await supabase
+    .from("startups")
+    .select("id")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  const applicationId = `APP-${Date.now()}`;
+
   const record = {
-    id: nextApplicationId(),
-    userId,
-    challengeId: challenge.id,
-    challenge: challenge.title,
-    solution: solutionTitle,
-    department: challenge.department,
-    submittedOn: todayLabel(),
-    createdAt: nowISO,
-    updatedAt: nowISO,
-    status: "Pending",
-    startupName,
-    contactPerson,
-    solutionDescription,
-    challengeSolution,
-    expectedImpact,
+    id: applicationId,
+    user_id: userId,
+    startup_id: startup?.id || null,
+    challenge_id: challenge.id,
+    startup_name: startupName,
+    contact_person: contactPerson,
+    solution_title: solutionTitle,
+    solution_description: solutionDescription,
+    challenge_solution: challengeSolution,
+    expected_impact: expectedImpact,
     technology,
-    document: document
-      ? { name: document.name, size: document.size, url: document.url }
-      : null,
+    document_name: document?.name || null,
+    document_size: document?.size || null,
+    document_type: document?.type || null,
+    document_path: document?.path || document?.url || null,
+    status: "Pending",
+    submitted_at: new Date().toISOString(),
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
   };
-  const all = allApplications();
-  all.push(record);
-  setJSON(KEYS.applications, all);
+
+  const { data, error } = await supabase
+    .from("applications")
+    .insert(record)
+    .select("*")
+    .single();
+
+  if (error) {
+    console.error("Error submitting application:", error);
+    throw new Error(error.message);
+  }
+
   await clearDraft(userId, challenge.id).catch(() => {});
-  await logActivity(userId, "submitted", `Applied to ${challenge.title} (${record.id})`, {
-    applicationId: record.id,
-    challengeId: challenge.id,
-  }).catch(() => {});
-  return record;
+
+  await logActivity(
+    userId,
+    "submitted",
+    `Applied to ${challenge.title} (${applicationId})`,
+    {
+      applicationId,
+      challengeId: challenge.id,
+    }
+  ).catch(() => {});
+
+  return mapApplication({
+    ...data,
+    challenge_title: challenge.title,
+    department: challenge.department,
+  });
 }
 
 export async function withdrawApplication(userId, applicationId) {
-  await delay(200);
-  const all = allApplications();
-  const target = all.find((a) => a.id === applicationId);
-  if (!target) throw new Error("Application not found");
-  // Demo seeds (userId null) can be removed locally too.
-  if (target.userId !== null && target.userId !== userId) {
-    throw new Error("Not allowed");
+  if (!userId) throw new Error("Not authenticated");
+
+  const { data: application, error: findError } = await supabase
+    .from("applications")
+    .select("*")
+    .eq("id", applicationId)
+    .eq("user_id", userId)
+    .single();
+
+  if (findError || !application) {
+    throw new Error("Application not found");
   }
-  setJSON(
-    KEYS.applications,
-    all.filter((a) => a.id !== applicationId)
-  );
-  await logActivity(userId, "withdrawn", `Withdrew application ${applicationId}`, {
-    applicationId,
-  }).catch(() => {});
+
+  const { error } = await supabase
+    .from("applications")
+    .delete()
+    .eq("id", applicationId)
+    .eq("user_id", userId);
+
+  if (error) {
+    console.error("Error withdrawing application:", error);
+    throw new Error(error.message);
+  }
+
+  await logActivity(
+    userId,
+    "withdrawn",
+    `Withdrew application ${applicationId}`,
+    {
+      applicationId,
+    }
+  ).catch(() => {});
+
   return true;
 }
 
-// ---------------- Government review (mock) ----------------
+export async function getApplicationsForGov() {
+  const { data, error } = await supabase
+    .from("applications")
+    .select(`
+      *,
+      challenges (
+        title,
+        department,
+        created_by
+      )
+    `)
+    .order("created_at", { ascending: false });
 
-function govScoped(ownedChallengeIds) {
-  const all = allApplications();
-  if (!Array.isArray(ownedChallengeIds) || ownedChallengeIds.length === 0) {
-    // Demo gov account owns nothing yet — show the full sample queue so the
-    // review flow is demonstrable. Real Supabase RLS would scope by department.
-    return all;
+  if (error) {
+    console.error("Error loading government applications:", error);
+    throw new Error(error.message);
   }
-  const ids = new Set(ownedChallengeIds.map(Number));
-  return all.filter((a) => ids.has(Number(a.challengeId)));
+
+  return (data || []).map((row) =>
+    mapApplication({
+      ...row,
+      challenge_title: row.challenges?.title || "",
+      department: row.challenges?.department || "",
+    })
+  );
 }
 
-export async function getApplicationsForGov({ ownedChallengeIds = null } = {}) {
-  await delay(250);
-  return govScoped(ownedChallengeIds).slice().reverse();
-}
+export async function getGovStats() {
+  const applications = await getApplicationsForGov();
 
-export async function getGovStats(ownedChallengeIds = null) {
-  await delay(100);
-  const apps = govScoped(ownedChallengeIds);
-  const by = (s) => apps.filter((a) => a.status === s).length;
+  const by = (status) =>
+    applications.filter((a) => a.status === status).length;
+
   return {
-    total: apps.length,
+    total: applications.length,
     pending: by("Pending"),
     underReview: by("Under Review"),
     approved: by("Approved"),
@@ -173,40 +307,85 @@ export async function updateApplicationStatus({
   status,
   note,
 }) {
-  await delay(250);
   if (!reviewerId) throw new Error("Not authenticated");
+
   if (!APPLICATION_STATUSES.includes(status)) {
     throw new Error(`Invalid status: ${status}`);
   }
-  const all = allApplications();
-  const idx = all.findIndex((a) => a.id === applicationId);
-  if (idx === -1) throw new Error("Application not found");
+
+  const { data: existing, error: findError } = await supabase
+    .from("applications")
+    .select(`
+      *,
+      challenges (
+        title,
+        department,
+        created_by
+      )
+    `)
+    .eq("id", applicationId)
+    .single();
+
+  if (findError || !existing) {
+    throw new Error("Application not found");
+  }
+
   const nowISO = new Date().toISOString();
-  const prev = all[idx];
-  const next = {
-    ...prev,
-    status,
-    reviewNote: String(note || "").trim(),
-    reviewedBy: reviewerId,
-    reviewedAt: nowISO,
-    updatedAt: nowISO,
-  };
-  all[idx] = next;
-  setJSON(KEYS.applications, all);
+
+  const { data, error } = await supabase
+    .from("applications")
+    .update({
+      status,
+      review_note: String(note || "").trim(),
+      reviewed_by: reviewerId,
+      reviewed_at: nowISO,
+      updated_at: nowISO,
+    })
+    .eq("id", applicationId)
+    .select(`
+      *,
+      challenges (
+        title,
+        department,
+        created_by
+      )
+    `)
+    .single();
+
+  if (error) {
+    console.error("Error updating application status:", error);
+    throw new Error(error.message);
+  }
+
+  const mapped = mapApplication({
+    ...data,
+    challenge_title: data.challenges?.title || "",
+    department: data.challenges?.department || "",
+  });
+
   await logActivity(
     reviewerId,
     "reviewed",
-    `${status}: ${next.challenge} (${next.id})${prev.status !== status ? ` [${prev.status} → ${status}]` : ""}`,
-    { applicationId: next.id, challengeId: next.challengeId, status }
+    `${status}: ${mapped.challenge} (${mapped.id})`,
+    {
+      applicationId: mapped.id,
+      challengeId: mapped.challengeId,
+      status,
+    }
   ).catch(() => {});
-  // Also log for the applicant so their timeline/activity reflects the review.
-  if (next.userId) {
+
+  if (mapped.userId) {
     await logActivity(
-      next.userId,
+      mapped.userId,
       "status_changed",
-      `Your application ${next.id} is now ${status}`,
-      { applicationId: next.id, challengeId: next.challengeId, status }
+      `Your application ${mapped.id} is now ${status}`,
+      {
+        applicationId: mapped.id,
+        challengeId: mapped.challengeId,
+        status,
+      }
     ).catch(() => {});
   }
-  return next;
+
+  return mapped;
 }

@@ -81,9 +81,13 @@ function StartupProfile() {
     if (!formData.founderName.trim()) errs.founderName = "Founder name is required.";
     if (!formData.email.trim()) errs.email = "Email is required.";
     else if (!/^\S+@\S+\.\S+$/.test(formData.email)) errs.email = "Enter a valid email.";
-    if (formData.website && !/^https?:\/\/.+\..+/.test(formData.website)) {
-      errs.website = "Website should start with http:// or https://";
-    }
+    if (formData.website.trim()) {
+  const website = formData.website.trim();
+
+  if (!website.startsWith("http://") && !website.startsWith("https://")) {
+    errs.website = "Website should start with http:// or https://";
+  }
+}
     if (formData.deckLink && !/^https?:\/\/.+\..+/.test(formData.deckLink)) {
       errs.deckLink = "Deck link should start with http:// or https://";
     }

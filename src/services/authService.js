@@ -1,3 +1,4 @@
+import { supabase } from "../lib/supabaseClient";
 import { KEYS, getJSON, setJSON, uid, delay } from "./mockDb.js";
 import { logActivity } from "./activity.js";
 
@@ -70,73 +71,147 @@ export async function signup({
   email,
   password,
 }) {
-  await delay(300);
-  let users = ensureSeedUsers(getJSON(KEYS.users, []));
   const normalized = String(email).trim().toLowerCase();
-  if (users.some((u) => u.email === normalized)) {
-    throw new Error("An account with this email already exists.");
-  }
+
   const resolvedRole = normalizeRole(role);
   const isGov = resolvedRole === ROLES.GOVERNMENT;
+
   const displayName = isGov
     ? String(orgName || department || "").trim()
     : String(startupName || "").trim();
+
   if (!displayName) {
     throw new Error(
-      isGov ? "Organisation / department is required." : "Startup name is required."
+      isGov
+        ? "Organisation / department is required."
+        : "Startup name is required."
     );
   }
-  const user = {
-    id: uid("user"),
+
+  // Create user in Supabase Authentication
+  const { data, error } = await supabase.auth.signUp({
+    email: normalized,
+    password,
+  });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  const { user } = data;
+
+  if (!user) {
+    throw new Error("Signup failed.");
+  }
+
+  // Create the user's profile
+  const { error: profileError } = await supabase
+    .from("Profiles")
+    .insert({
+      id: user.id,
+      role: resolvedRole,
+      email: normalized,
+      org_name: isGov ? displayName : null,
+      department: isGov
+        ? String(department || displayName).trim()
+        : null,
+      designation: isGov
+        ? String(designation || "").trim()
+        : null,
+    });
+
+  if (profileError) {
+    throw new Error(profileError.message);
+  }
+
+  return publicUser({
+    id: user.id,
     role: resolvedRole,
     startupName: isGov ? "" : displayName,
     orgName: isGov ? displayName : "",
-    department: isGov ? String(department || displayName).trim() : "",
-    designation: isGov ? String(designation || "").trim() : "",
+    department: isGov
+      ? String(department || displayName).trim()
+      : "",
+    designation: isGov
+      ? String(designation || "").trim()
+      : "",
     email: normalized,
-    password: encode(password),
-    createdAt: new Date().toISOString(),
-  };
-  users.push(user);
-  setJSON(KEYS.users, users);
-  setJSON(KEYS.session, { userId: user.id, email: user.email });
-  await logActivity(
-    user.id,
-    "signup",
-    `Account created for ${displayName} (${resolvedRole})`
-  ).catch(() => {});
-  return publicUser(user);
+  });
 }
 
-export async function login({ email, password }) {
-  await delay(300);
-  const users = ensureSeedUsers(getJSON(KEYS.users, []));
+export async function login({ email,password }) {
   const normalized = String(email).trim().toLowerCase();
-  const user = users.find((u) => u.email === normalized);
-  if (!user || user.password !== encode(password)) {
-    throw new Error("Invalid email or password.");
+
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email: normalized,
+    password,
+  });
+
+ if (error) {
+  console.error("Supabase login error:", error);
+  throw new Error(`${error.code}: ${error.message}`);
+}
+
+  const { user } = data;
+
+  if (!user) {
+    throw new Error("Login failed.");
   }
-  // Backfill legacy rows so old sessions keep working.
-  if (!user.role) {
-    user.role = ROLES.STARTUP;
-    setJSON(KEYS.users, users);
+
+  // Get the user's profile from our database
+  const { data: profile, error: profileError } = await supabase
+    .from("Profiles")
+    .select("*")
+    .eq("id", user.id)
+    .single();
+
+  if (profileError) {
+    throw new Error("User profile not found.");
   }
-  setJSON(KEYS.session, { userId: user.id, email: user.email });
-  return publicUser(user);
+
+  return publicUser({
+    id: user.id,
+    role: profile.role,
+    startupName: profile.startup_name || "",
+    orgName: profile.org_name || "",
+    department: profile.department || "",
+    designation: profile.designation || "",
+    email: user.email,
+  });
 }
 
 export async function logout() {
-  await delay(100);
-  localStorage.removeItem(KEYS.session);
+  const { error } = await supabase.auth.signOut();
+
+  if (error) {
+    throw new Error(error.message);
+  }
 }
 
 export async function getSessionUser() {
-  await delay(100);
-  const session = getJSON(KEYS.session, null);
-  if (!session?.userId) return null;
-  const users = ensureSeedUsers(getJSON(KEYS.users, []));
-  const user = users.find((u) => u.id === session.userId);
-  return user ? publicUser(user) : null;
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) return null;
+
+  const { data: profile, error } = await supabase
+    .from("Profiles")
+    .select("*")
+    .eq("id", user.id)
+    .single();
+
+  if (error || !profile) return null;
+
+  return publicUser({
+    id: user.id,
+    role: profile.role,
+    startupName: profile.startup_name || "",
+    orgName: profile.org_name || "",
+    department: profile.department || "",
+    designation: profile.designation || "",
+    email: user.email,
+  });
 }
 
 export function publicUser(user) {

@@ -132,6 +132,10 @@ function DetailDrawer({ app, onClose, onWithdraw, onViewChallenge }) {
             <dd>{app.technology || "—"}</dd>
           </div>
           <div>
+            <dt>Review Note</dt>
+                 <dd>{app.reviewNote || "—"}</dd>
+          </div>
+          <div>
             <dt>Document</dt>
             <dd>
               {app.document?.name

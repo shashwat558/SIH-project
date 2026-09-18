@@ -1,4 +1,4 @@
-import { KEYS, getJSON, setJSON, delay } from "./mockDb.js";
+import { supabase } from "../lib/supabaseClient";
 import { logActivity } from "./activity.js";
 
 export const emptyProfile = {
@@ -21,21 +21,101 @@ export const emptyProfile = {
 };
 
 export async function getProfile(userId) {
-  await delay(150);
   if (!userId) return { ...emptyProfile };
-  const all = getJSON(KEYS.profiles, {});
-  return { ...emptyProfile, ...(all[userId] || {}) };
+
+  const { data, error } = await supabase
+    .from("startups")
+    .select("*")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  if (!data) {
+    return { ...emptyProfile };
+  }
+
+  return {
+    ...emptyProfile,
+    startupName: data.startup_name || "",
+    founderName: data.founder_name || "",
+    email: data.email || "",
+    phone: data.phone || "",
+    website: data.website || "",
+    location: data.location || "",
+    industry: data.industry || "",
+    description: data.description || "",
+    stage: data.stage || "",
+    foundedYear: data.founded_year || "",
+    teamSize: data.team_size || "",
+    dpiit: data.dpiit || "",
+    technology: data.technology || "",
+    techTags: data.tech_tags || "",
+    deckLink: data.deck_link || "",
+  };
 }
 
 export async function saveProfile(userId, data) {
-  await delay(250);
-  if (!userId) throw new Error("Not authenticated");
-  const all = getJSON(KEYS.profiles, {});
+  if (!userId) {
+    throw new Error("Not authenticated");
+  }
+
   const next = { ...emptyProfile, ...data };
-  all[userId] = next;
-  setJSON(KEYS.profiles, all);
-  await logActivity(userId, "profile_saved", "Startup profile updated").catch(() => {});
-  return next;
+
+  const { data: savedProfile, error } = await supabase
+    .from("startups")
+    .upsert(
+      {
+        user_id: userId,
+        startup_name: next.startupName,
+        founder_name: next.founderName,
+        email: next.email,
+        phone: next.phone,
+        website: next.website,
+        location: next.location,
+        industry: next.industry,
+        description: next.description,
+        stage: next.stage,
+        founded_year: next.foundedYear
+          ? Number(next.foundedYear)
+          : null,
+        team_size: next.teamSize
+          ? Number(next.teamSize)
+          : null,
+        dpiit: next.dpiit,
+        technology: next.technology,
+        tech_tags: Array.isArray(next.techTags)
+          ? next.techTags
+          : String(next.techTags || "")
+              .split(",")
+              .map((tag) => tag.trim())
+              .filter(Boolean),
+        deck_link: next.deckLink,
+        updated_at: new Date().toISOString(),
+      },
+      {
+        onConflict: "user_id",
+      }
+    )
+    .select()
+    .single();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  await logActivity(
+    userId,
+    "profile_saved",
+    "Startup profile updated"
+  ).catch(() => {});
+
+  return {
+    ...next,
+    id: savedProfile.id,
+  };
 }
 
 export function profileCompletion(profile) {
